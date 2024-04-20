@@ -91,7 +91,7 @@ class ODCM(nn.Module): # 1D CNN
         # x = self.relu3(x)
 
         # S × L -> S × Lf (2D feature matrix) -> S × C × Le (3D feature matrix)
-        # where C is the number of depth-wise convolutional kernels used in the 'last layer'
+        # where C is the number of depth-wise convolutional kernels used in the last layer
         x = torch.reshape(x, ((int)(x.shape[0] / self.ncf), self.ncf, (int)(x.shape[1])))
 
         return x
