@@ -1,4 +1,4 @@
-# Conceptual demonstration of training script. - Not for actual usage.
+# Conceptual demonstration of training script. - Not for actual use.
 import numpy as np
 import pandas as pd
 import os
