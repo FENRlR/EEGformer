@@ -615,6 +615,6 @@ torch.Size([120, 20, 498])
 torch.Size([10, 20, 120])
 
 - output : CNNdecoder
-tensor([[62.8309]], device='cuda:0', grad_fn=<AddmmBackward0>)
+tensor([[136.2732]], device='cuda:0', grad_fn=<AddmmBackward0>)
 torch.Size([1, 1])
 """

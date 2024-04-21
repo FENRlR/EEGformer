@@ -138,6 +138,18 @@ class RTM(nn.Module):  # Regional transformer module
         for i in range(self.inputshape[2]):  # (i = 1,2,3,…,S) - i in the paper
             for j in range(self.inputshape[0]):  # (j = 1,2,3,…,C) - c in the paper
                 for a in range(self.tK):  # blocks(layer)
+                    self.qkvspace[:, i, j, a] = torch.matmul(self.Wqkv[:, a], self.lnorm(self.savespace[i][j]))  # Q, K, V
+                    self.rsaspace[i, j, a] = self.softmax(torch.tensordot((self.qkvspace[0, i, j, a] / math.sqrt(self.Dh)), self.qkvspace[1, i, j, a], dims=([0, 1], [0, 1])))
+
+                    for subj in range(j):  # 0~j
+                        self.imv[i, j, a] += self.rsaspace[i, subj, a] @ self.qkvspace[2, i, subj, a]
+
+                    self.savespace[i, j] = self.Wo[a] @ (self.imv[i, j, a, :].reshape(self.imv[i, j, a, :].shape[0] * self.imv[i, j, a, :].shape[1])) + self.savespace[i, j]
+                    self.savespace[i, j] = self.lnormz(self.savespace[i, j]) + self.savespace[i, j]
+                    self.savespace[i, j] = self.mlp(self.savespace[i, j])  # new z
+
+
+                    """
                     for b in range(self.hA):  # heads per block
                         self.qkvspace[0, i, j, a, b] = torch.matmul(self.Wq[a, b], self.lnorm(self.savespace[i][j]))  # Q
                         self.qkvspace[1, i, j, a, b] = torch.matmul(self.Wk[a, b], self.lnorm(self.savespace[i][j]))  # K
@@ -161,6 +173,7 @@ class RTM(nn.Module):  # Regional transformer module
                     # self.savespace[i, j] = self.mlp(self.lnormz(self.savespace[i, j]) + self.savespace[i,j]) # new z - reserve
                     self.savespace[i, j] = self.lnormz(self.savespace[i, j]) + self.savespace[i, j]
                     self.savespace[i, j] = self.mlp(self.savespace[i, j])  # new z
+                    """
 
         return self.savespace  # S x C x D - z4 in the paper
 
