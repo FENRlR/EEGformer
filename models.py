@@ -8,51 +8,21 @@ import torchvision.ops as tos
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-class ODCM(nn.Module): # 1D CNN
+class ODCM(nn.Module): # 1D CNN Module
     def __init__(self, input_channels, kernel_size, dtype=torch.float32):
         super(ODCM, self).__init__()
-        # - 1D CNN
-        # The outputs of the 1DCNN are defined as z3 ∈ R^(S×C×Le)
-        # S : number of EEG channels = 20
-        # C : number of depth-wise convolutional kernels used in the last layer
-        # Le : features length outputted by the last layer
         """
         The input of the 1DCNN is an EEG segment represented using a two-dimensional (2D) matrix of size S × L, 
-        where S represents the number of EEG channels, 
-        and L represents the segment length. 
-
-        The EEG segment is de-trend and normalized before being fed into the 1DCNN module, 
-        and the normalized EEG segment is represented by x ∈ R^(S × L). 
-
+        where S represents the number of EEG channels, and L represents the segment length. 
         The 1DCNN adopts multiple depth-wise convolutions to extract EEG-channel-wise features and generate 3D feature maps. 
-
         It shifts across the data along the EEG channel dimension for each depth-wise convolution 
-        and generates a 2D feature matrix of size S × Lf, 
-        where Lf is the length of the extracted feature vector. 
-
+        and generates a 2D feature matrix of size S × Lf, where Lf is the length of the extracted feature vector. 
         The output of the 1DCNN module is a 3D feature matrix of size S × C × Le, 
         where C is the number of depth-wise convolutional kernels used in the last layer of the 1DCNN module, 
         Le is the features length outputted by the last layer of the 1DCNN module.
-
-        The size of the depth-wise convolutional filters used in the three layers is 1 × 10, 
-        valid padding mode is applied in the three layers and the stride of the filters is set to 1.
-
-        The number of the depth-wise convolutional filter used in the three layers is set to 120, 
-        ensuring sufficient frequency features for learning the regional and synchronous characteristics. 
-
-        We used a 3D coordinate system to depict the axis meaning of the 3D feature matrix. 
-        The X, Y, and Z axes represent the temporal, spatial, 
-        and convolutional feature information contained in the 3D feature matrix, respectively. 
-
-        The output of the 1DCNN module is fed into the EEGformer encoder for encoding the EEG characteristics 
-        (regional, temporal, and synchronous characteristics) in a unified manner. 
-
-        The decoder is responsible for decoding the EEG characteristics 
-        and inferencing the results according to the specific task.
         """
-
         self.inpch = input_channels
-        self.ksize = kernel_size  # 1X10
+        self.ksize = kernel_size  # The size of the depth-wise convolutional filters used in the three layers is 1 × 10
         self.ncf = 120  # The number of the depth-wise convolutional filter used in the three layers is set to 120
         self.dtype = dtype
 
@@ -66,18 +36,6 @@ class ODCM(nn.Module): # 1D CNN
         # self.relu3 = nn.ReLU()
 
     def forward(self, x):
-        """
-        The 1DCNN adopts multiple depth-wise convolutions to extract EEG-channel-wise features and generate 3D feature maps.
-        It shifts across the data along the EEG channel dimension for each depth-wise convolution
-        and generates a 2D feature matrix of size S × Lf, where Lf is the length of the extracted feature vector.
-        The output of the 1DCNN module is a 3D feature matrix of size S × C × Le,
-        where C is the number of depth-wise convolutional kernels used in the last layer of the 1DCNN module,
-        Le is the features length outputted by the last layer of the 1DCNN module.
-
-        More specifically, the 1DCNN is comprised of three depth-wise convolutional layers.
-        Hence, we have the processing x → z1 → z2 → z3, where z1, z2, and z3 denote the outputs of the three layers.
-        """
-
         # x → z1
         x = self.cvf1(x)
         # x = self.relu1(x)
@@ -225,7 +183,7 @@ class STM(nn.Module):  # Synchronous transformer module
         if self.M_size1 % self.hA != 0 and int(self.M_size1 / self.hA) == 0:
             print("ERROR 2")
 
-        # Wq, Wk, Wv - the matrices of query, key, and value in the regional transformer module
+        # Wq, Wk, Wv - the matrices of query, key, and value in the synchronous transformer module
         self.Wq = nn.Parameter(torch.randn((self.tK, self.hA, self.Dh, self.M_size1), dtype=self.dtype))
         self.Wk = nn.Parameter(torch.randn((self.tK, self.hA, self.Dh, self.M_size1), dtype=self.dtype))
         self.Wv = nn.Parameter(torch.randn((self.tK, self.hA, self.Dh, self.M_size1), dtype=self.dtype))
@@ -340,7 +298,7 @@ class TTM(nn.Module):  # Temporal transformer module
         if self.M_size1 % self.hA != 0 and int(self.M_size1 / self.hA) == 0:
             print("ERROR 4")
 
-        # Wq, Wk, Wv - the matrices of query, key, and value in the regional transformer module
+        # Wq, Wk, Wv - the matrices of query, key, and value in the temporal transformer module
         self.Wq = nn.Parameter(torch.randn((self.tK, self.hA, self.Dh, self.M_size1), dtype=self.dtype))
         self.Wk = nn.Parameter(torch.randn((self.tK, self.hA, self.Dh, self.M_size1), dtype=self.dtype))
         self.Wv = nn.Parameter(torch.randn((self.tK, self.hA, self.Dh, self.M_size1), dtype=self.dtype))
@@ -502,7 +460,7 @@ class eegloss(nn.Module):  # Loss function
     def __init__(self, L1_reg_const, w):
         super(eegloss, self).__init__()
         """
-        Loss = (1/Dn) * sigma(i=1~Dn){-log(Pi(Yi)) + lambda * abs(w)}
+        Loss = (1/Dn) * sigma(i=1~Dn){-log(Pi(Yi)) + λ * abs(w)}
         where Dn is the number of data samples in the training dataset,
         Pi and Yi are the prediction results produced by the model and the corresponding ground truth label for the i-th data sample,
         and λ is the constant of the L1 regularization. (λ > 0, is manually tuned)
