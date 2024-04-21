@@ -212,9 +212,9 @@ class RTM(nn.Module): # Regional transformer module
                         #- Intermediate vectors
                         # z renewed by l-th layer is computed by first concatenating the intermediate vectors from all heads,
                         # and the vector concatenation is projected by matrix Wo
-                        imv[i,j,a,b] = self.rsaspace[i,0,a,b]*qkvspace[2,i,0,a,b] # looks quite obsolete but anyway...
+                        #imv[i,j,a,b] = self.rsaspace[i,0,a,b]*qkvspace[2,i,0,a,b] # looks quite obsolete but anyway...
 
-                        for subj in range(1, j+1):#0~j
+                        for subj in range(j):#0~j
                             imv[i,j,a,b] += self.rsaspace[i,subj,a,b]*qkvspace[2,i,subj,a,b]
 
                     #- NOW SAY HELLO TO NEW Z!
@@ -307,9 +307,9 @@ class STM(nn.Module): # Synchronous transformer module
                         #- Intermediate vectors
                         # z renewed by l-th layer is computed by first concatenating the intermediate vectors from all heads,
                         # and the vector concatenation is projected by matrix Wo
-                        imv[i,j,a,b] = self.rsaspace[i,0,a,b]*qkvspace[2,i,0,a,b] # looks quite obsolete but anyway...
+                        #imv[i,j,a,b] = self.rsaspace[i,0,a,b]*qkvspace[2,i,0,a,b] # looks quite obsolete but anyway...
 
-                        for subj in range(1, j+1):#0~j
+                        for subj in range(j):#0~j
                             imv[i,j,a,b] += self.rsaspace[i,subj,a,b]*qkvspace[2,i,subj,a,b]
 
                     #- NOW SAY HELLO TO NEW Z!
@@ -440,9 +440,9 @@ class TTM(nn.Module): # Temporal transformer module
                     #- Intermediate vectors
                     # z renewed by l-th layer is computed by first concatenating the intermediate vectors from all heads,
                     # and the vector concatenation is projected by matrix Wo
-                    imv[i, a, b] = self.rsaspace[0, a, b] * qkvspace[2, 0, a, b]  # looks quite obsolete but anyway...
+                    #imv[i, a, b] = self.rsaspace[0, a, b] * qkvspace[2, 0, a, b]  # looks quite obsolete but anyway...
 
-                    for subj in range(1, i + 1):
+                    for subj in range(i):
                         imv[i, a, b] += self.rsaspace[subj, a, b] * qkvspace[2, subj, a, b]
 
                 #- NOW SAY HELLO TO NEW Z!

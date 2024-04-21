@@ -97,14 +97,14 @@ class RTM(nn.Module):  # Regional transformer module
         self.Wk = nn.Parameter(torch.randn((self.tK, self.hA, self.Dh, self.M_size1), dtype=self.dtype))
         self.Wv = nn.Parameter(torch.randn((self.tK, self.hA, self.Dh, self.M_size1), dtype=self.dtype))
 
-        self.Wo = nn.Parameter(torch.randn(self.tK, self.M_size1, self.M_size1, dtype=self.dtype))   # DxD -> DxDh in the paper but we gonna concatenate heads anyway and Dh*hA = D
+        self.Wo = nn.Parameter(torch.randn(self.tK, self.M_size1, self.M_size1, dtype=self.dtype))  # DxD -> DxDh in the paper but we gonna concatenate heads anyway and Dh*hA = D
 
         self.lnorm = nn.LayerNorm(self.M_size1, dtype=self.dtype)  # LayerNorm operation for dimension D
         self.lnormz = nn.LayerNorm(self.M_size1, dtype=self.dtype)  # LayerNorm operation for z
 
         self.softmax = nn.Softmax()
 
-        self.rsaspace = torch.zeros(self.inputshape[2], self.inputshape[0], self.tK, self.hA, dtype=self.dtype).to(device)   # space for attention score
+        self.rsaspace = torch.zeros(self.inputshape[2], self.inputshape[0], self.tK, self.hA, dtype=self.dtype).to(device)  # space for attention score
         self.qkvspace = torch.zeros(3, self.inputshape[2], self.inputshape[0], self.tK, self.hA, self.Dh, dtype=self.dtype).to(device) # Q, K, V
 
         # intermediate vector space (s in paper) -> R^Dh
@@ -151,7 +151,7 @@ class RTM(nn.Module):  # Regional transformer module
                         # and the vector concatenation is projected by matrix Wo
                         self.imv[i, j, a, b] = self.rsaspace[i, 0, a, b] * self.qkvspace[2, i, 0, a, b]  # looks quite obsolete but anyway...
 
-                        for subj in range(1, j + 1):  # 0~j
+                        for subj in range(j):  # 0~j
                             self.imv[i, j, a, b] += self.rsaspace[i, subj, a, b] * self.qkvspace[2, i, subj, a, b]
 
                     # - NOW SAY HELLO TO NEW Z!
@@ -174,7 +174,7 @@ class STM(nn.Module):  # Synchronous transformer module
 
         self.weight = nn.Parameter(torch.randn(self.M_size1, self.inputshape[1], dtype=self.dtype))
         self.bias = torch.zeros(self.inputshape[2], self.inputshape[0], self.M_size1, dtype=self.dtype).to(device)
-        self.savespace = torch.zeros(self.inputshape[2], self.inputshape[0], self.M_size1, dtype=self.dtype).to(device)   # C x S x D
+        self.savespace = torch.zeros(self.inputshape[2], self.inputshape[0], self.M_size1, dtype=self.dtype).to(device)  # C x S x D
 
         self.tK = num_blocks  # number of transformer blocks - K in the paper
         self.hA = num_heads  # number of multi-head self-attention units (A is the number of units in a block)
@@ -238,9 +238,9 @@ class STM(nn.Module):  # Synchronous transformer module
                         # - Intermediate vectors
                         # z renewed by l-th layer is computed by first concatenating the intermediate vectors from all heads,
                         # and the vector concatenation is projected by matrix Wo
-                        self.imv[i, j, a, b] = self.rsaspace[i, 0, a, b] * self.qkvspace[2, i, 0, a, b]  # looks quite obsolete but anyway...
+                        #self.imv[i, j, a, b] = self.rsaspace[i, 0, a, b] * self.qkvspace[2, i, 0, a, b]  # looks quite obsolete but anyway...
 
-                        for subj in range(1, j + 1):  # 0~j
+                        for subj in range(j):  # 0~j
                             self.imv[i, j, a, b] += self.rsaspace[i, subj, a, b] * self.qkvspace[2, i, subj, a, b]
 
                     # - NOW SAY HELLO TO NEW Z!
@@ -364,9 +364,9 @@ class TTM(nn.Module):  # Temporal transformer module
                     # - Intermediate vectors
                     # z renewed by l-th layer is computed by first concatenating the intermediate vectors from all heads,
                     # and the vector concatenation is projected by matrix Wo
-                    self.imv[i, a, b] = self.rsaspace[0, a, b] * self.qkvspace[2, 0, a, b]  # looks quite obsolete but anyway...
+                    #self.imv[i, a, b] = self.rsaspace[0, a, b] * self.qkvspace[2, 0, a, b]  # looks quite obsolete but anyway...
 
-                    for subj in range(1, i + 1):
+                    for subj in range(i):
                         self.imv[i, a, b] += self.rsaspace[subj, a, b] * self.qkvspace[2, subj, a, b]
 
                 # - NOW SAY HELLO TO NEW Z!
