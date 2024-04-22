@@ -93,9 +93,7 @@ class RTM(nn.Module):  # Regional transformer module
             print("ERROR 1")
 
         # Wq, Wk, Wv - the matrices of query, key, and value in the regional transformer module
-        self.Wq = nn.Parameter(torch.randn((self.tK, self.hA, self.Dh, self.M_size1), dtype=self.dtype))
-        self.Wk = nn.Parameter(torch.randn((self.tK, self.hA, self.Dh, self.M_size1), dtype=self.dtype))
-        self.Wv = nn.Parameter(torch.randn((self.tK, self.hA, self.Dh, self.M_size1), dtype=self.dtype))
+        self.Wqkv = nn.Parameter(torch.randn((3, self.tK, self.hA, self.Dh, self.M_size1), dtype=self.dtype))
 
         self.Wo = nn.Parameter(torch.randn(self.tK, self.M_size1, self.M_size1, dtype=self.dtype))  # DxD -> DxDh in the paper but we gonna concatenate heads anyway and Dh*hA = D
 
@@ -104,11 +102,11 @@ class RTM(nn.Module):  # Regional transformer module
 
         self.softmax = nn.Softmax()
 
-        self.rsaspace = torch.zeros(self.inputshape[2], self.inputshape[0], self.tK, self.hA, dtype=self.dtype).to(device)  # space for attention score
-        self.qkvspace = torch.zeros(3, self.inputshape[2], self.inputshape[0], self.tK, self.hA, self.Dh, dtype=self.dtype).to(device) # Q, K, V
+        self.rsaspace = torch.zeros(self.tK, self.inputshape[2], self.inputshape[0], self.hA, dtype=self.dtype).to(device)  # space for attention score
+        self.qkvspace = torch.zeros(self.tK, 3, self.inputshape[2], self.inputshape[0], self.hA, self.Dh, dtype=self.dtype).to(device) # Q, K, V
 
         # intermediate vector space (s in paper) -> R^Dh
-        self.imv = torch.zeros(self.inputshape[2], self.inputshape[0], self.tK, self.hA, self.Dh, dtype=self.dtype).to(device)
+        self.imv = torch.zeros(self.tK, self.inputshape[2], self.inputshape[0], self.hA, self.Dh, dtype=self.dtype).to(device)
 
         # - Bias
         # "encode the position for each convolutional feature changing over time"
@@ -135,45 +133,27 @@ class RTM(nn.Module):  # Regional transformer module
 
         # - Multi head attention
         # Q, K, V -> computed from the representation encoded by the preceding layer(l-1)
-        for i in range(self.inputshape[2]):  # (i = 1,2,3,…,S) - i in the paper
-            for j in range(self.inputshape[0]):  # (j = 1,2,3,…,C) - c in the paper
-                for a in range(self.tK):  # blocks(layer)
-                    self.qkvspace[:, i, j, a] = torch.matmul(self.Wqkv[:, a], self.lnorm(self.savespace[i][j]))  # Q, K, V
-                    self.rsaspace[i, j, a] = self.softmax(torch.tensordot((self.qkvspace[0, i, j, a] / math.sqrt(self.Dh)), self.qkvspace[1, i, j, a], dims=([0, 1], [0, 1])))
+        for a in range(self.tK):  # blocks(layer)
+            for i in range(self.inputshape[2]):  # (i = 1,2,3,…,S) - i in the paper
+                for j in range(self.inputshape[0]):  # (j = 1,2,3,…,C) - c in the paper
+                    self.qkvspace[a, :, i, j] = torch.matmul(self.Wqkv[:, a], self.lnorm(self.savespace[i][j]))  # Q, K, V
 
+                    # - Attention score
+                    self.rsaspace[a, i, j] = self.softmax(torch.tensordot((self.qkvspace[a, 0, i, j] / math.sqrt(self.Dh)), self.qkvspace[a, 1, i, j], dims=([0, 1], [0, 1])))
+
+                    # - Intermediate vectors
+                    # z renewed by l-th layer is computed by first concatenating the intermediate vectors from all heads,
+                    # and the vector concatenation is projected by matrix Wo
                     for subj in range(j):  # 0~j
-                        self.imv[i, j, a] += self.rsaspace[i, subj, a] @ self.qkvspace[2, i, subj, a]
-
-                    self.savespace[i, j] = self.Wo[a] @ (self.imv[i, j, a, :].reshape(self.imv[i, j, a, :].shape[0] * self.imv[i, j, a, :].shape[1])) + self.savespace[i, j]
-                    self.savespace[i, j] = self.lnormz(self.savespace[i, j]) + self.savespace[i, j]
-                    self.savespace[i, j] = self.mlp(self.savespace[i, j])  # new z
-
-
-                    """
-                    for b in range(self.hA):  # heads per block
-                        self.qkvspace[0, i, j, a, b] = torch.matmul(self.Wq[a, b], self.lnorm(self.savespace[i][j]))  # Q
-                        self.qkvspace[1, i, j, a, b] = torch.matmul(self.Wk[a, b], self.lnorm(self.savespace[i][j]))  # K
-                        self.qkvspace[2, i, j, a, b] = torch.matmul(self.Wv[a, b], self.lnorm(self.savespace[i][j]))  # V
-
-                        # - Attention score
-                        self.rsaspace[i, j, a, b] = self.softmax(torch.matmul((self.qkvspace[0, i, j, a, b] / math.sqrt(self.Dh)),self.qkvspace[1, i, j, a, b]))  # -> R^C (j에 대해 나열시?)
-
-                        # - Intermediate vectors
-                        # z renewed by l-th layer is computed by first concatenating the intermediate vectors from all heads,
-                        # and the vector concatenation is projected by matrix Wo
-                        self.imv[i, j, a, b] = self.rsaspace[i, 0, a, b] * self.qkvspace[2, i, 0, a, b]  # looks quite obsolete but anyway...
-
-                        for subj in range(j):  # 0~j
-                            self.imv[i, j, a, b] += self.rsaspace[i, subj, a, b] * self.qkvspace[2, i, subj, a, b]
+                        self.imv[a, i, j] += self.rsaspace[a, i, subj] @ self.qkvspace[a, 2, i, subj]
 
                     # - NOW SAY HELLO TO NEW Z!
-                    self.savespace[i, j] = self.Wo[a] @ (self.imv[i, j, a, :].reshape(self.imv[i, j, a, :].shape[0] * self.imv[i, j, a, :].shape[1])) + self.savespace[i, j]  # z' in the paper
+                    self.savespace[i, j] = self.Wo[a] @ (self.imv[a, i, j, :].reshape(self.imv[a, i, j, :].shape[0] * self.imv[a, i, j, :].shape[1])) + self.savespace[i, j]
+                    self.savespace[i, j] = self.lnormz(self.savespace[i, j]) + self.savespace[i, j]
 
                     # - normalized by LN() and passed through a multilayer perceptron (MLP)
-                    # self.savespace[i, j] = self.mlp(self.lnormz(self.savespace[i, j]) + self.savespace[i,j]) # new z - reserve
-                    self.savespace[i, j] = self.lnormz(self.savespace[i, j]) + self.savespace[i, j]
                     self.savespace[i, j] = self.mlp(self.savespace[i, j])  # new z
-                    """
+
 
         return self.savespace  # S x C x D - z4 in the paper
 
@@ -197,9 +177,7 @@ class STM(nn.Module):  # Synchronous transformer module
             print("ERROR 2")
 
         # Wq, Wk, Wv - the matrices of query, key, and value in the synchronous transformer module
-        self.Wq = nn.Parameter(torch.randn((self.tK, self.hA, self.Dh, self.M_size1), dtype=self.dtype))
-        self.Wk = nn.Parameter(torch.randn((self.tK, self.hA, self.Dh, self.M_size1), dtype=self.dtype))
-        self.Wv = nn.Parameter(torch.randn((self.tK, self.hA, self.Dh, self.M_size1), dtype=self.dtype))
+        self.Wqkv = nn.Parameter(torch.randn((3, self.tK, self.hA, self.Dh, self.M_size1), dtype=self.dtype))
 
         self.Wo = nn.Parameter(torch.randn(self.tK, self.M_size1, self.M_size1, dtype=self.dtype)) # DxDh in the paper but we gonna concatenate heads anyway and Dh*hA = D
 
@@ -208,11 +186,12 @@ class STM(nn.Module):  # Synchronous transformer module
 
         self.softmax = nn.Softmax()
 
-        self.rsaspace = torch.zeros(self.inputshape[2], self.inputshape[0], self.tK, self.hA, dtype=self.dtype).to(device)  # space for attention score
-        self.qkvspace = torch.zeros(3, self.inputshape[2], self.inputshape[0], self.tK, self.hA, self.Dh, dtype=self.dtype).to(device) # Q, K, V
+        self.rsaspace = torch.zeros(self.tK, self.inputshape[2], self.inputshape[0], self.hA, dtype=self.dtype).to(device)  # space for attention score
+        self.qkvspace = torch.zeros(self.tK, 3, self.inputshape[2], self.inputshape[0], self.hA, self.Dh,dtype=self.dtype).to(device)  # Q, K, V
+
 
         # intermediate vector space (s in paper) -> R^Dh
-        self.imv = torch.zeros(self.inputshape[2], self.inputshape[0], self.tK, self.hA, self.Dh, dtype=self.dtype).to(device)
+        self.imv = torch.zeros(self.tK, self.inputshape[2], self.inputshape[0], self.hA, self.Dh, dtype=self.dtype).to(device)
 
         # - Bias
         for i in range(self.inputshape[2]):  # (i = 1,2,3,…,C)
@@ -237,30 +216,20 @@ class STM(nn.Module):  # Synchronous transformer module
 
         # - Multi head attention
         # Q, K, V -> computed from the representation encoded by the preceding layer(l-1)
-        for i in range(self.inputshape[2]):  # (i = 1,2,3,…,C) - i in the paper
-            for j in range(self.inputshape[0]):  # (j = 1,2,3,…,S) - s in the paper
-                for a in range(self.tK):  # blocks(layer)
-                    for b in range(self.hA):  # heads per block
-                        self.qkvspace[0, i, j, a, b] = torch.matmul(self.Wq[a, b], self.lnorm(self.savespace[i][j]))  # Q
-                        self.qkvspace[1, i, j, a, b] = torch.matmul(self.Wk[a, b], self.lnorm(self.savespace[i][j]))  # K
-                        self.qkvspace[2, i, j, a, b] = torch.matmul(self.Wv[a, b], self.lnorm(self.savespace[i][j]))  # V
+        for a in range(self.tK):  # blocks(layer)
+            for i in range(self.inputshape[2]):  # (i = 1,2,3,…,C) - i in the paper
+                for j in range(self.inputshape[0]):  # (j = 1,2,3,…,S) - s in the paper
+                    self.qkvspace[a, :, i, j] = torch.matmul(self.Wqkv[:, a], self.lnorm(self.savespace[i][j]))  # Q, K, V
 
-                        # - Attention score
-                        self.rsaspace[i, j, a, b] = self.softmax(torch.matmul((self.qkvspace[0, i, j, a, b] / math.sqrt(self.Dh)), self.qkvspace[1, i, j, a, b]))
+                    # - Attention score
+                    self.rsaspace[a, i, j] = self.softmax(torch.tensordot((self.qkvspace[a, 0, i, j] / math.sqrt(self.Dh)), self.qkvspace[a, 1, i, j], dims=([0, 1], [0, 1])))
 
-                        # - Intermediate vectors
-                        # z renewed by l-th layer is computed by first concatenating the intermediate vectors from all heads,
-                        # and the vector concatenation is projected by matrix Wo
-                        #self.imv[i, j, a, b] = self.rsaspace[i, 0, a, b] * self.qkvspace[2, i, 0, a, b]  # looks quite obsolete but anyway...
-
-                        for subj in range(j):  # 0~j
-                            self.imv[i, j, a, b] += self.rsaspace[i, subj, a, b] * self.qkvspace[2, i, subj, a, b]
+                    # - Intermediate vectors
+                    for subj in range(j):  # 0~j
+                        self.imv[a, i, j] += self.rsaspace[a, i, subj] @ self.qkvspace[a, 2, i, subj]
 
                     # - NOW SAY HELLO TO NEW Z!
-                    self.savespace[i, j] = self.Wo[a] @ (self.imv[i, j, a, :].reshape(self.imv[i, j, a, :].shape[0] * self.imv[i, j, a, :].shape[1])) + self.savespace[i, j]  # z' in the paper
-
-                    # - Normalized by LN() and passed through a multilayer perceptron (MLP)
-                    # self.savespace[i, j] = self.mlp(self.lnormz(self.savespace[i, j]) + self.savespace[i,j]) # new z - reserve
+                    self.savespace[i, j] = self.Wo[a] @ (self.imv[a, i, j, :].reshape(self.imv[a, i, j, :].shape[0] * self.imv[a, i, j, :].shape[1])) + self.savespace[i, j]
                     self.savespace[i, j] = self.lnormz(self.savespace[i, j]) + self.savespace[i, j]
                     self.savespace[i, j] = self.mlp(self.savespace[i, j])  # new z
 
@@ -312,9 +281,7 @@ class TTM(nn.Module):  # Temporal transformer module
             print("ERROR 4")
 
         # Wq, Wk, Wv - the matrices of query, key, and value in the temporal transformer module
-        self.Wq = nn.Parameter(torch.randn((self.tK, self.hA, self.Dh, self.M_size1), dtype=self.dtype))
-        self.Wk = nn.Parameter(torch.randn((self.tK, self.hA, self.Dh, self.M_size1), dtype=self.dtype))
-        self.Wv = nn.Parameter(torch.randn((self.tK, self.hA, self.Dh, self.M_size1), dtype=self.dtype))
+        self.Wqkv = nn.Parameter(torch.randn((3, self.tK, self.hA, self.Dh, self.M_size1), dtype=self.dtype))
 
         self.Wo = nn.Parameter(torch.randn(self.tK, self.M_size1, self.M_size1, dtype=self.dtype))  # L1xL1 -> L1xL in the paper, where L*hA = L1
 
@@ -323,11 +290,11 @@ class TTM(nn.Module):  # Temporal transformer module
 
         self.softmax = nn.Softmax()
 
-        self.rsaspace = torch.zeros(self.inputshape[0], self.tK, self.hA, dtype=self.dtype).to(device) # space for attention score
-        self.qkvspace = torch.zeros(3, self.inputshape[0], self.tK, self.hA, self.Dh, dtype=self.dtype).to(device)# Q, K, V
+        self.rsaspace = torch.zeros(self.tK, self.inputshape[0], self.hA, dtype=self.dtype).to(device)  # space for attention score
+        self.qkvspace = torch.zeros(self.tK, 3, self.inputshape[0], self.hA, self.Dh, dtype=self.dtype).to(device) # Q, K, V
 
         # - Intermediate vector space (s in paper) -> R^Dh
-        self.imv = torch.zeros(self.inputshape[0], self.tK, self.hA, self.Dh, dtype=self.dtype).to(device)
+        self.imv = torch.zeros(self.tK, self.inputshape[0], self.hA, self.Dh, dtype=self.dtype).to(device)
 
         # - Bias
         # M x L -> shape of the input
@@ -364,31 +331,21 @@ class TTM(nn.Module):  # Temporal transformer module
 
         # - Multi head attention
         # Q, K, V -> computed from the representation encoded by the preceding layer(l-1)
-        for i in range(self.inputshape[0]):  # (i = 1,2,3,…,M) - i in the paper
-            for a in range(self.tK):  # blocks(layer)
-                for b in range(self.hA):  # heads per block
-                    self.qkvspace[0, i, a, b] = torch.matmul(self.Wq[a, b], self.lnorm(self.savespace[i]))  # Q
-                    self.qkvspace[1, i, a, b] = torch.matmul(self.Wk[a, b], self.lnorm(self.savespace[i]))  # K
-                    self.qkvspace[2, i, a, b] = torch.matmul(self.Wv[a, b], self.lnorm(self.savespace[i]))  # V
+        for a in range(self.tK):  # blocks(layer)
+            for j in range(self.inputshape[0]):  # (i = 1,2,3,…,M) - i in the paper
+                self.qkvspace[a, :, j] = torch.matmul(self.Wqkv[:, a], self.lnorm(self.savespace[j]))  # Q, K, V
+                # - Attention score
+                self.rsaspace[a, j] = self.softmax(
+                    torch.tensordot((self.qkvspace[a, 0, j] / math.sqrt(self.Dh)), self.qkvspace[a, 1, j], dims=([0, 1], [0, 1])))
 
-                    # - Attention score
-                    self.rsaspace[i, a, b] = self.softmax(torch.matmul((self.qkvspace[0, i, a, b] / math.sqrt(self.Dh)), self.qkvspace[1, i, a, b]))
-
-                    # - Intermediate vectors
-                    # z renewed by l-th layer is computed by first concatenating the intermediate vectors from all heads,
-                    # and the vector concatenation is projected by matrix Wo
-                    #self.imv[i, a, b] = self.rsaspace[0, a, b] * self.qkvspace[2, 0, a, b]  # looks quite obsolete but anyway...
-
-                    for subj in range(i):
-                        self.imv[i, a, b] += self.rsaspace[subj, a, b] * self.qkvspace[2, subj, a, b]
+                # - Intermediate vectors
+                for subj in range(j):  # 0~j
+                    self.imv[a, j] += self.rsaspace[a, subj] @ self.qkvspace[a, 2, subj]
 
                 # - NOW SAY HELLO TO NEW Z!
-                self.savespace[i] = self.Wo[a] @ (self.imv[i, a, :].reshape(self.imv[i, a, :].shape[0] * self.imv[i, a, :].shape[1])) + self.savespace[i]  # z' in the paper - # M x D
-
-                # - Normalized by LN() and passed through a multilayer perceptron (MLP)
-                # self.savespace[i, j] = self.mlp(self.lnormz(self.savespace[i, j]) + self.savespace[i,j]) # new z - reserve
-                self.savespace[i] = self.lnormz(self.savespace[i]) + self.savespace[i]
-                self.savespace[i] = self.mlp(self.savespace[i])  # new z
+                self.savespace[j] = self.Wo[a] @ (self.imv[a, j, :].reshape(self.imv[a, j, :].shape[0] * self.imv[a, j, :].shape[1])) + self.savespace[j]
+                self.savespace[j] = self.lnormz(self.savespace[j]) + self.savespace[j]
+                self.savespace[j] = self.mlp(self.savespace[j])  # new z
 
         return self.savespace.reshape(self.avgf, self.input.shape[1], self.input.shape[2])  # M x S x C - O in the paper which is M x (S*C) but we need M x S x C for the decoder anyway
 
