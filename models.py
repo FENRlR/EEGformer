@@ -102,7 +102,7 @@ class RTM(nn.Module):  # Regional transformer module
             self.rsaspace[a] = torch.einsum('ijhd,ijhd -> ijh', self.qkvspace[a, 0] / math.sqrt(self.Dh), self.qkvspace[a, 1])
 
             # - Intermediate vectors
-            self.imv[a] += torch.einsum('ijh,ijhd -> ijhd', self.rsaspace[a], self.qkvspace[a, 2])
+            self.imv[a] = torch.einsum('ijh,ijhd -> ijhd', self.rsaspace[a], self.qkvspace[a, 2])
 
             for subj in range(1, j):
                 self.imv[a, :, subj] += self.imv[a, :, subj - 1]
@@ -169,7 +169,7 @@ class STM(nn.Module):  # Synchronous transformer module
             self.rsaspace[a] = torch.einsum('ijhd,ijhd -> ijh', self.qkvspace[a, 0] / math.sqrt(self.Dh), self.qkvspace[a, 1])
 
             # - Intermediate vectors
-            self.imv[a] += torch.einsum('ijh,ijhd -> ijhd', self.rsaspace[a], self.qkvspace[a, 2])
+            self.imv[a] = torch.einsum('ijh,ijhd -> ijhd', self.rsaspace[a], self.qkvspace[a, 2])
 
             for subj in range(1, self.inputshape[0]):
                 self.imv[a, :, subj] += self.imv[a, :, subj - 1]
@@ -262,7 +262,7 @@ class TTM(nn.Module):  # Temporal transformer module
             self.rsaspace[a] = torch.einsum('ihd,ihd -> ih', self.qkvspace[a, 0] / math.sqrt(self.Dh), self.qkvspace[a, 1])
 
             # - Intermediate vectors
-            self.imv[a] += torch.einsum('ih,ihd -> ihd', self.rsaspace[a], self.qkvspace[a, 2])
+            self.imv[a] = torch.einsum('ih,ihd -> ihd', self.rsaspace[a], self.qkvspace[a, 2])
 
             for subj in range(1, self.inputshape[0]):
                 self.imv[a, subj] += self.imv[a, subj - 1]
