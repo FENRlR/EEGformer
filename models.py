@@ -192,6 +192,7 @@ class TTM(nn.Module):  # Temporal transformer module
 
         self.inputc = torch.zeros(self.avgf, self.input.shape[1], self.input.shape[2], dtype=self.dtype).to(device)  # M x S x C
 
+        self.altx = self.inputc.reshape(self.avgf, self.input.shape[1] * self.input.shape[2]).to(device)
 
         self.inputcf = self.inputc.reshape(self.avgf, self.input.shape[1] * self.input.shape[2])  # M x L1 -> M x (S*C)
         self.inputshape = self.inputcf.shape  # M x L1
@@ -223,15 +224,14 @@ class TTM(nn.Module):  # Temporal transformer module
 
     def forward(self, x):
         self.input = x.transpose(0, 2)  # D x S x C
-        #inputc = torch.zeros(self.avgf, input.shape[1], input.shape[2], dtype=self.dtype).to(device)  # M x S x C
+
         for i in range(0, self.avgf):  # each i consists self.input.shape[0]/avgf
             for j in range(int(i * self.seg), int((i + 1) * self.seg)):  # int(i*self.seg), int((i+1)*self.seg)
                 self.inputc[i, :, :] = self.inputc[i, :, :] + self.input[j, :, :]
             self.inputc[i, :, :] = self.inputc[i, :, :] / self.seg
 
-        altx = self.inputc.reshape(self.avgf, self.input.shape[1] * self.input.shape[2])  # M x L -> M x (S*C)
-
-        self.savespace = torch.einsum('lm,im -> il', self.weight, altx)
+        self.altx = self.inputc.reshape(self.avgf, self.input.shape[1] * self.input.shape[2])  # M x L -> M x (S*C)
+        self.savespace = torch.einsum('lm,im -> il', self.weight, self.altx.clone())
 
         # - Bias
         for i in range(self.inputshape[0]):  # (i = 1,2,3,…,M)
