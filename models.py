@@ -77,6 +77,14 @@ class RTM(nn.Module):  # Regional transformer module
         self.qkvspace = torch.zeros(self.tK, 3, self.inputshape[2], self.inputshape[0], self.hA, self.Dh, dtype=self.dtype).to(device)  # Q, K, V
         self.imv = torch.zeros(self.tK, self.inputshape[2], self.inputshape[0], self.hA, self.Dh, dtype=self.dtype).to(device)
 
+        self.mlp = Mlp(in_features=self.M_size1, hidden_features=int(self.M_size1 * 4), act_layer=nn.GELU, dtype=self.dtype)  # mlp_ratio=4
+
+    def forward(self, x):
+        x = x.transpose(0, 1).transpose(1, 2)  # C x D x S
+
+        self.savespace = torch.einsum('lm,jmi -> ijl', self.weight, x)
+
+        # - Bias
         for i in range(self.inputshape[2]):  # (i = 1,2,3,…,S) -> S : number of EEG channels = 20
             for j in range(self.inputshape[0]):  # (j = 1,2,3,…,C) -> C : number of depth-wise convolutional kernels used in the last layer
                 # The vector is sequentially taken out from the along the convolutional feature dimension and fed into the linear mapping module.
@@ -84,31 +92,22 @@ class RTM(nn.Module):  # Regional transformer module
                     self.bias[i][j][z] = math.sin(j / 10000.0 ** (2 * z / self.M_size1))
                     self.bias[i][j][z + 1] = math.cos(j / 10000.0 ** (2 * z / self.M_size1))
 
-        self.mlp = Mlp(in_features=self.M_size1, hidden_features=int(self.M_size1 * 4), act_layer=nn.GELU, dtype=self.dtype)  # mlp_ratio=4
-
-    def forward(self, x):
-        x = x.transpose(0, 1).transpose(1, 2)  # C x D x S
-
-        for i in range(self.inputshape[2]):  # (i = 1,2,3,…,S) - i in the paper
-            for j in range(self.inputshape[0]):  # (j = 1,2,3,…,C) - c in the paper
-                self.savespace[i][j] = torch.matmul(self.weight, x[j, :, i])  # R^(D)
-
         self.savespace = torch.add(self.savespace, self.bias)  # z -> S x C x D
 
         for a in range(self.tK):  # blocks(layer)
             self.qkvspace[a] = torch.einsum('xhdm,ijm -> xijhd', self.Wqkv[a], self.lnorm(self.savespace))  # Q, K, V
 
             # - Attention score
-            self.rsaspace[a] = torch.einsum('ijhd,ijhd -> ijh', self.qkvspace[a, 0] / math.sqrt(self.Dh), self.qkvspace[a, 1])
+            self.rsaspace[a] = torch.einsum('ijhd,ijhd -> ijh', self.qkvspace[a, 0].clone() / math.sqrt(self.Dh), self.qkvspace[a, 1].clone())
 
             # - Intermediate vectors
-            self.imv[a] = torch.einsum('ijh,ijhd -> ijhd', self.rsaspace[a], self.qkvspace[a, 2])
+            self.imv[a] = torch.einsum('ijh,ijhd -> ijhd', self.rsaspace[a].clone(), self.qkvspace[a, 2].clone())
 
-            for subj in range(1, j):
-                self.imv[a, :, subj] += self.imv[a, :, subj - 1]
+            for subj in range(1, self.inputshape[0]):
+                self.imv[a, :, subj] = self.imv[a, :, subj] + self.imv[a, :, subj - 1]
 
             # - NOW SAY HELLO TO NEW Z!
-            self.savespace = torch.einsum('nm,ijm -> ijn', self.Wo[a], self.imv.reshape(self.tK, self.inputshape[2], self.inputshape[0], self.M_size1)[a]) + self.savespace  # z'
+            self.savespace = torch.einsum('nm,ijm -> ijn', self.Wo[a], self.imv.clone().reshape(self.tK, self.inputshape[2], self.inputshape[0], self.M_size1)[a]) + self.savespace  # z'
 
             # - normalized by LN() and passed through a multilayer perceptron (MLP)
             self.savespace = self.lnormz(self.savespace) + self.savespace
@@ -142,6 +141,13 @@ class STM(nn.Module):  # Synchronous transformer module
         self.qkvspace = torch.zeros(self.tK, 3, self.inputshape[2], self.inputshape[0], self.hA, self.Dh, dtype=self.dtype).to(device)  # Q, K, V
         self.imv = torch.zeros(self.tK, self.inputshape[2], self.inputshape[0], self.hA, self.Dh, dtype=self.dtype).to(device)
 
+        self.mlp = Mlp(in_features=self.M_size1, hidden_features=int(self.M_size1 * 4), act_layer=nn.GELU, dtype=self.dtype)  # mlp_ratio=4
+
+    def forward(self, x): # S x C x D
+        x = x.transpose(1, 2)  # S x D x C
+
+        self.savespace = torch.einsum('lm,jmi -> ijl', self.weight, x)
+
         # - Bias
         for i in range(self.inputshape[2]):  # (i = 1,2,3,…,C)
             for j in range(self.inputshape[0]):  # (j = 1,2,3,…,S)
@@ -150,32 +156,22 @@ class STM(nn.Module):  # Synchronous transformer module
                     self.bias[i][j][z] = math.sin(j / 10000.0 ** (2 * z / self.M_size1))
                     self.bias[i][j][z + 1] = math.cos(j / 10000.0 ** (2 * z / self.M_size1))
 
-        self.mlp = Mlp(in_features=self.M_size1, hidden_features=int(self.M_size1 * 4), act_layer=nn.GELU, dtype=self.dtype)  # mlp_ratio=4
-
-    def forward(self, x):
-        # S x C x D -> x
-        x = x.transpose(1, 2)  # S x D x C
-
-        for i in range(self.inputshape[2]):  # (i = 1,2,3,…,C)
-            for j in range(self.inputshape[0]):  # (j = 1,2,3,…,S)
-                self.savespace[i][j] = torch.matmul(self.weight, x[j, :, i])  # R^(D)
-
         self.savespace = torch.add(self.savespace, self.bias)  # z -> C x S x D
 
         for a in range(self.tK):  # blocks(layer)
             self.qkvspace[a] = torch.einsum('xhdm,ijm -> xijhd', self.Wqkv[a], self.lnorm(self.savespace))  # Q, K, V
 
             # - Attention score
-            self.rsaspace[a] = torch.einsum('ijhd,ijhd -> ijh', self.qkvspace[a, 0] / math.sqrt(self.Dh), self.qkvspace[a, 1])
+            self.rsaspace[a] = torch.einsum('ijhd,ijhd -> ijh', self.qkvspace[a, 0].clone() / math.sqrt(self.Dh), self.qkvspace[a, 1].clone())
 
             # - Intermediate vectors
-            self.imv[a] = torch.einsum('ijh,ijhd -> ijhd', self.rsaspace[a], self.qkvspace[a, 2])
+            self.imv[a] = torch.einsum('ijh,ijhd -> ijhd', self.rsaspace[a].clone(), self.qkvspace[a, 2].clone())
 
             for subj in range(1, self.inputshape[0]):
-                self.imv[a, :, subj] += self.imv[a, :, subj - 1]
+                self.imv[a, :, subj] = self.imv[a, :, subj] + self.imv[a, :, subj - 1]
 
             # - NOW SAY HELLO TO NEW Z!
-            self.savespace = torch.einsum('nm,ijm -> ijn', self.Wo[a], self.imv.reshape(self.tK, self.inputshape[2], self.inputshape[0], self.M_size1)[a]) + self.savespace  # z'
+            self.savespace = torch.einsum('nm,ijm -> ijn', self.Wo[a], self.imv.clone().reshape(self.tK, self.inputshape[2], self.inputshape[0], self.M_size1)[a]) + self.savespace  # z'
 
             # - normalized by LN() and passed through a multilayer perceptron (MLP)
             self.savespace = self.lnormz(self.savespace) + self.savespace
@@ -195,10 +191,7 @@ class TTM(nn.Module):  # Temporal transformer module
             print("ERROR 3")
 
         self.inputc = torch.zeros(self.avgf, self.input.shape[1], self.input.shape[2], dtype=self.dtype).to(device)  # M x S x C
-        for i in range(0, self.avgf):  # each i consists self.input.shape[0]/avgf
-            for j in range(int(i * self.seg), int((i + 1) * self.seg)):
-                self.inputc[i, :, :] += self.input[j, :, :]
-            self.inputc[i, :, :] = self.inputc[i, :, :] / self.seg
+
 
         self.inputcf = self.inputc.reshape(self.avgf, self.input.shape[1] * self.input.shape[2])  # M x L1 -> M x (S*C)
         self.inputshape = self.inputcf.shape  # M x L1
@@ -226,32 +219,25 @@ class TTM(nn.Module):  # Temporal transformer module
         self.qkvspace = torch.zeros(self.tK, 3, self.inputshape[0], self.hA, self.Dh, dtype=self.dtype).to(device)  # Q, K, V
         self.imv = torch.zeros(self.tK, self.inputshape[0], self.hA, self.Dh, dtype=self.dtype).to(device)
 
+        self.mlp = Mlp(in_features=self.M_size1, hidden_features=int(self.M_size1 * 4), act_layer=nn.GELU, dtype=self.dtype)  # mlp_ratio=4
+
+    def forward(self, x):
+        self.input = x.transpose(0, 2)  # D x S x C
+        #inputc = torch.zeros(self.avgf, input.shape[1], input.shape[2], dtype=self.dtype).to(device)  # M x S x C
+        for i in range(0, self.avgf):  # each i consists self.input.shape[0]/avgf
+            for j in range(int(i * self.seg), int((i + 1) * self.seg)):  # int(i*self.seg), int((i+1)*self.seg)
+                self.inputc[i, :, :] = self.inputc[i, :, :] + self.input[j, :, :]
+            self.inputc[i, :, :] = self.inputc[i, :, :] / self.seg
+
+        altx = self.inputc.reshape(self.avgf, self.input.shape[1] * self.input.shape[2])  # M x L -> M x (S*C)
+
+        self.savespace = torch.einsum('lm,im -> il', self.weight, altx)
+
         # - Bias
-        # M x L -> shape of the input
         for i in range(self.inputshape[0]):  # (i = 1,2,3,…,M)
             for j in range(0, self.M_size1, 2):  # (j = 1,2,3,…,D)
                 self.bias[i][j] = math.sin(i / 10000.0 ** (2 * j / self.M_size1))
                 self.bias[i][j + 1] = math.cos(i / 10000.0 ** (2 * j / self.M_size1))
-
-        self.mlp = Mlp(in_features=self.M_size1, hidden_features=int(self.M_size1 * 4), act_layer=nn.GELU, dtype=self.dtype)  # mlp_ratio=4
-
-    def redefine(self, input):
-        input = input.transpose(0, 2)  # D x S x C
-        inputc = torch.zeros(self.avgf, input.shape[1], input.shape[2], dtype=self.dtype).to(device)  # M x S x C
-        for i in range(0, self.avgf):  # each i consists self.input.shape[0]/avgf
-            for j in range(int(i * self.seg), int((i + 1) * self.seg)):  # int(i*self.seg), int((i+1)*self.seg)
-                inputc[i, :, :] += input[j, :, :]
-            inputc[i, :, :] = inputc[i, :, :] / self.seg
-
-        inputcf = inputc.reshape(self.avgf, input.shape[1] * input.shape[2])  # M x L -> M x (S*C)
-
-        return inputcf
-
-    def forward(self, x):
-        x = self.redefine(x)  # M x L -> M x (S*C)
-
-        for i in range(self.inputshape[0]):  # (i = 1,2,3,…,M)
-            self.savespace[i] = torch.matmul(self.weight, x[i, :])  # R^(D)
 
         self.savespace = torch.add(self.savespace, self.bias)  # z -> M x D
 
@@ -259,16 +245,16 @@ class TTM(nn.Module):  # Temporal transformer module
             self.qkvspace[a] = torch.einsum('xhdm,im -> xihd', self.Wqkv[a], self.lnorm(self.savespace))  # Q, K, V
 
             # - Attention score
-            self.rsaspace[a] = torch.einsum('ihd,ihd -> ih', self.qkvspace[a, 0] / math.sqrt(self.Dh), self.qkvspace[a, 1])
+            self.rsaspace[a] = torch.einsum('ihd,ihd -> ih', self.qkvspace[a, 0].clone() / math.sqrt(self.Dh), self.qkvspace[a, 1].clone())
 
             # - Intermediate vectors
-            self.imv[a] = torch.einsum('ih,ihd -> ihd', self.rsaspace[a], self.qkvspace[a, 2])
+            self.imv[a] = torch.einsum('ih,ihd -> ihd', self.rsaspace[a].clone(), self.qkvspace[a, 2].clone())
 
             for subj in range(1, self.inputshape[0]):
-                self.imv[a, subj] += self.imv[a, subj - 1]
+                self.imv[a, subj] = self.imv[a, subj] + self.imv[a, subj - 1]
 
             # - NOW SAY HELLO TO NEW Z!
-            self.savespace = torch.einsum('nm,im -> in', self.Wo[a], self.imv.reshape(self.tK, self.inputshape[0], self.M_size1)[a]) + self.savespace  # z'
+            self.savespace = torch.einsum('nm,im -> in', self.Wo[a], self.imv.clone().reshape(self.tK, self.inputshape[0], self.M_size1)[a]) + self.savespace  # z'
 
             # - normalized by LN() and passed through a multilayer perceptron (MLP)
             self.savespace = self.lnormz(self.savespace) + self.savespace
@@ -281,9 +267,9 @@ class CNNdecoder(nn.Module):  # EEGformer decoder
     def __init__(self, input, CF_second, dtype):  # input -> # M x S x C
         super(CNNdecoder, self).__init__()
         self.input = input.transpose(0, 1).transpose(1, 2)  # S x C x M
-        self.s = self.input.shape[0]  # S
-        self.c = self.input.shape[1]  # C
-        self.m = self.input.shape[2]  # M
+        self.s = self.input.shape[0]
+        self.c = self.input.shape[1]
+        self.m = self.input.shape[2]
         self.n = CF_second
         self.dtype = dtype
         self.cvd1 = nn.Conv1d(in_channels=self.c, out_channels=1, kernel_size=1, dtype=self.dtype)  # S x M
@@ -318,11 +304,11 @@ class EEGformer(nn.Module):
         self.outshape3 = torch.zeros(self.outshape2.shape[1], self.outshape2.shape[0], self.outshape2.shape[2]).to(device)
         self.outshape4 = torch.zeros(self.avgf, self.outshape3.shape[1], self.outshape3.shape[0]).to(device)
 
-        self.odcm = ODCM(input_channels, self.kernel_size, self.dtype)  # .to(device)
-        self.rtm = RTM(self.outshape1, self.tK, self.hA, self.dtype)  # .to(device)
-        self.stm = STM(self.outshape2, self.tK, self.hA, self.dtype)  # .to(device)
-        self.ttm = TTM(self.outshape3, self.avgf, self.tK, self.hA, self.dtype)  # .to(device)
-        self.cnndecoder = CNNdecoder(self.outshape4, self.cfs, self.dtype)  # .to(device)
+        self.odcm = ODCM(input_channels, self.kernel_size, self.dtype)
+        self.rtm = RTM(self.outshape1, self.tK, self.hA, self.dtype)
+        self.stm = STM(self.outshape2, self.tK, self.hA, self.dtype)
+        self.ttm = TTM(self.outshape3, self.avgf, self.tK, self.hA, self.dtype)
+        self.cnndecoder = CNNdecoder(self.outshape4, self.cfs, self.dtype)
 
     def forward(self, x):
         x = self.odcm(x.transpose(0, 1))
