@@ -40,11 +40,13 @@ model.to(device)
 
 inputs = None
 
-optimizer = torch.optim.AdamW(model.parameters(), lr=0.001)
-
+# TODO : proper labels
 label = torch.tensor(pd.read_excel(f"./dummydata/labels.xlsx").values[0:, 0:]).to(dtype).to(device)
 num_data = label.squeeze().shape[0]
 lossf = models.eegloss(L1_reg_const = 1.0, w = 0.5)
+
+
+optimizer = torch.optim.AdamW([{'params': model.parameters()}, {'params': lossf.parameters(), 'lr': 0.001} ], lr=0.001)
 
 
 dummyval_i = torch.tensor(pd.read_excel("./dummydata/exeeg1.xlsx").values[0:, 0:]).to(dtype).to(device)
@@ -52,6 +54,7 @@ dummyval_l = torch.tensor(pd.read_excel(f"./dummydata/labels.xlsx").values[0:, 0
 
 
 for i in range(epoch):
+    optimizer.zero_grad()
     outputs = torch.zeros(num_data).to(device)
 
     for j in range(1, num_data + 1):
@@ -63,7 +66,7 @@ for i in range(epoch):
 
     loss = lossf(outputs, label)
 
-    optimizer.zero_grad()
+
     loss.backward()
 
     optimizer.step()
