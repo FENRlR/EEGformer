@@ -52,14 +52,20 @@ dummyval_l = torch.tensor(pd.read_excel(f"./dummydata/labels.xlsx").values[0:, 0
 
 
 for i in range(epoch):
-    outputs = torch.zeros(num_data)
-    for j in range(1, num_data+1):
+    outputs = torch.zeros(num_data).to(device)
+
+    for j in range(1, num_data + 1):
         inputs = torch.tensor(pd.read_excel(f"./dummydata/exeeg{j}.xlsx").values[0:, 0:]).to(dtype).to(device)
-        outputs[j] = model(inputs)
+        #label = torch.tensor(pd.read_excel(f"./dummydata/labels.xlsx").values[0:, 0:]).to(dtype).to(device)
+
+        outputs[j - 1] = model(inputs)
+        print(f"output : {outputs[j - 1]}")
 
     loss = lossf(outputs, label)
+
     optimizer.zero_grad()
     loss.backward()
 
     optimizer.step()
-    print(f"epoch {i} -> loss : {loss}")
+
+    print(f">>> epoch {i+1} -> loss : {loss}")
