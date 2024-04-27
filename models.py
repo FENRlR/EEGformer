@@ -325,5 +325,5 @@ class eegloss(nn.Module):  # Loss function
         self.w = nn.Parameter(torch.tensor(w))
 
     def forward(self, x, label):
-        x = torch.mean(-torch.log(x @ label) + self.lrc * torch.abs(self.w))
+        x = torch.mean(-torch.log(x * label) + self.lrc * torch.abs(self.w))
         return x
