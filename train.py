@@ -43,7 +43,8 @@ inputs = None
 # TODO : proper labels
 label = torch.tensor(pd.read_excel(f"./dummydata/labels.xlsx").values[0:, 0:]).to(dtype).to(device)
 num_data = label.squeeze().shape[0]
-lossf = models.eegloss(L1_reg_const = 1.0, w = 0.5)
+# TODO : find proper value for w
+lossf = models.eegloss(L1_reg_const = 0.005, w = 0.5)
 
 
 optimizer = torch.optim.AdamW([{'params': model.parameters()}, {'params': lossf.parameters(), 'lr': 0.001} ], lr=0.001)

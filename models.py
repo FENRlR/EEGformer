@@ -278,9 +278,10 @@ class CNNdecoder(nn.Module):  # EEGformer decoder
 
     def forward(self, x):  # x -> M x S x C
         x = x.transpose(0, 1).transpose(1, 2)  # S x C x M
-        x = self.cvd1(x).squeeze()  # S x M
-        x = self.cvd2(x).transpose(0, 1).squeeze()  # N x M transposed to M x N
-        x = self.cvd3(x).squeeze()  # M/2 x N
+        x = self.cvd1(x)
+        x = x[:,0,:] #.squeeze()  # S x M
+        x = self.cvd2(x).transpose(0, 1)  # N x M transposed to M x N
+        x = self.cvd3(x)  # M/2 x N
         x = self.fc(x.reshape(1, x.shape[0] * x.shape[1]))
 
         return x
