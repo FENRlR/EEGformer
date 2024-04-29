@@ -282,7 +282,7 @@ class CNNdecoder(nn.Module):  # EEGformer decoder
         x = x[:,0,:] #.squeeze()  # S x M
         x = self.cvd2(x).transpose(0, 1)  # N x M transposed to M x N
         x = self.cvd3(x)  # M/2 x N
-        x = self.fc(x.reshape(1, x.shape[0] * x.shape[1]))
+        x = self.fc(x.reshape(1, x.shape[0] * x.shape[1])) # w
 
         return x
 
@@ -327,5 +327,6 @@ class eegloss(nn.Module):  # Loss function
 
     def forward(self, x, label):
         # TODO : Pi(Yi) should be interpreted as a probability for Yi, not matmul
+        # TODO : Proper L1 Regularization
         x = torch.mean(-torch.log(x * label) + self.lrc * torch.abs(self.w))
         return x
