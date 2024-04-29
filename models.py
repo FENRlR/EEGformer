@@ -326,5 +326,6 @@ class eegloss(nn.Module):  # Loss function
         self.w = nn.Parameter(torch.tensor(w))
 
     def forward(self, x, label):
+        # TODO : Pi(Yi) should be interpreted as a probability for Yi, not matmul
         x = torch.mean(-torch.log(x * label) + self.lrc * torch.abs(self.w))
         return x

@@ -20,7 +20,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # Parameters
 input_channels = 20
 kernel_size = 10
-num_blocks = 10 # number of transformer blocks - K in the paper
+num_blocks = 3 # number of transformer blocks - K in the paper
 num_heads = 1 # number of multi-head self-attention units (A is the number of units in a block)
 num_submatrices = 10 # number of submatrices in temporal transformer module
 CF_second = 2 # # the number of convolutional filters used in the second layer in decoder - N in the paper
@@ -30,7 +30,7 @@ dtype = torch.float32
 
 epoch = 1
 
-
+#TODO : test with a real dataset
 inputs = torch.tensor(pd.read_excel("./dummydata/exeeg1.xlsx").values[0:, 0:]).to(dtype).to(device)  # torch.Size([5, 20])
 print(inputs)
 print(inputs.shape)
@@ -66,7 +66,6 @@ for i in range(epoch):
         print(f"output : {outputs[j - 1]}")
 
     loss = lossf(outputs, label)
-
 
     loss.backward()
 
