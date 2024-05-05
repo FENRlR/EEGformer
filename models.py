@@ -21,12 +21,16 @@ class ODCM(nn.Module): # 1D CNN Module
         self.cvf2 = nn.Conv1d(in_channels=self.cvf1.out_channels, out_channels=self.cvf1.out_channels, kernel_size=self.ksize, padding='valid', stride=1, groups=self.cvf1.out_channels, dtype=self.dtype)
         self.cvf3 = nn.Conv1d(in_channels=self.cvf2.out_channels, out_channels=self.ncf * self.cvf2.out_channels, kernel_size=self.ksize, padding='valid', stride=1, groups=self.cvf2.out_channels, dtype=self.dtype)
 
+        # - reserve
+        # self.relu = nn.ReLU()
+
     def forward(self, x):
         x = self.cvf1(x)
+        # x = self.relu(x)
         x = self.cvf2(x)
+        # x = self.relu(x)
         x = self.cvf3(x)
         x = torch.reshape(x, ((int)(x.shape[0] / self.ncf), self.ncf, (int)(x.shape[1])))
-
         return x
 
 
@@ -57,6 +61,8 @@ class RTM(nn.Module):  # Regional transformer module
         self.dtype = dtype
 
         self.weight = nn.Parameter(torch.randn(self.M_size1, self.inputshape[1], dtype=self.dtype))
+        # TODO : add missing cls token and initialize the bias properly
+        self.bias = nn.Parameter(torch.zeros(self.inputshape[2], self.inputshape[0], self.M_size1, dtype=self.dtype))
         self.tK = num_blocks  # number of transformer blocks - K in the paper
         self.hA = num_heads  # number of multi-head self-attention units (A is the number of units in a block)
         self.Dh = int(self.M_size1 / self.hA)  # Dh is the quotient computed by D/A and denotes the dimension number of three vectors.
@@ -78,16 +84,18 @@ class RTM(nn.Module):  # Regional transformer module
 
             # - Bias
             # TODO : should be replaced with a learnable positional embedding
+            """
             bias = torch.zeros(x.shape[2], x.shape[0], self.M_size1, dtype=self.dtype).to(device)
             for i in range(x.shape[2]):  # (i = 1,2,3,…,S) -> S : number of EEG channels = 20
                 for j in range(x.shape[0]):  # (j = 1,2,3,…,C) -> C : number of depth-wise convolutional kernels used in the last layer
                     for z in range(0, self.M_size1, 2):
                         bias[i][j][z] = math.sin(j / 10000.0 ** (2 * z / self.M_size1))
                         bias[i][j][z + 1] = math.cos(j / 10000.0 ** (2 * z / self.M_size1))
+            """
 
             savespace = torch.zeros(x.shape[2], x.shape[0], self.M_size1, dtype=self.dtype).to(device)  # S x C x D
             savespace = torch.einsum('lm,jmi -> ijl', self.weight, x)
-            savespace = torch.add(savespace, bias)  # z -> S x C x D
+            savespace = torch.add(savespace, self.bias)  # z -> S x C x D
 
             qkvspace = torch.zeros(self.tK, 3, x.shape[2], x.shape[0], self.hA, self.Dh, dtype=self.dtype).to(device)  # Q, K, V
             rsaspace = torch.zeros(self.tK, x.shape[2], x.shape[0], self.hA, dtype=self.dtype).to(device)
@@ -316,17 +324,15 @@ class EEGformer(nn.Module):
         x = self.stm(x)
         x = self.ttm(x)
         x = self.cnndecoder(x)
-        return x
+        return torch.sigmoid(x) # return x
 
 
-class eegloss(nn.Module):  # Loss function
-    def __init__(self, L1_reg_const, w):
-        super(eegloss, self).__init__()
-        self.lrc = L1_reg_const
-        self.w = nn.Parameter(torch.tensor(w))
+    def eegloss(self, xf, label, L1_reg_const): # Loss function
+        # weight sum of cnndecoder for now
+        wt = (torch.sum(torch.abs(self.cnndecoder.fc.weight))
+              + torch.sum(torch.abs(self.cnndecoder.cvd1.weight))
+              + torch.sum(torch.abs(self.cnndecoder.cvd2.weight))
+              + torch.sum(torch.abs(self.cnndecoder.cvd3.weight)))
 
-    def forward(self, x, label):
-        # TODO : Pi(Yi) should be interpreted as a probability for Yi, not matmul
-        # TODO : Proper L1 Regularization
-        x = torch.mean(-torch.log(x * label) + self.lrc * torch.abs(self.w))
-        return x
+        ls = torch.mean(-( label * torch.log(xf)+(1-label)*torch.log(1-xf) )) + L1_reg_const * wt
+        return ls
