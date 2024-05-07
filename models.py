@@ -94,7 +94,7 @@ class RTM(nn.Module):  # Regional transformer module
         self.Dh = int(self.M_size1 / self.hA)  # Dh is the quotient computed by D/A and denotes the dimension number of three vectors.
 
         if self.M_size1 % self.hA != 0 or int(self.M_size1 / self.hA) == 0:
-            print(f"ERROR 1 - RTM : self.Dh({self.Dh}) != {self.M_size1}/{self.hA}")
+            print(f"ERROR 1 - RTM : self.Dh = {int(self.M_size1 / self.hA)} != {self.M_size1}/{self.hA} \nTry with different num_heads")
 
         self.weight = nn.Parameter(torch.randn(self.M_size1, self.inputshape[1], dtype=self.dtype))
         self.bias = nn.Parameter(torch.zeros(self.inputshape[2], self.inputshape[0] + 1, self.M_size1, dtype=self.dtype))  # S x C x D
@@ -155,7 +155,7 @@ class STM(nn.Module):  # Synchronous transformer module
         self.Dh = int(self.M_size1 / self.hA)  # Dh is the quotient computed by D/A and denotes the dimension number of three vectors.
 
         if self.M_size1 % self.hA != 0 or int(self.M_size1 / self.hA) == 0:
-            print(f"ERROR 2 - STM : self.Dh({self.Dh}) != {self.M_size1}/{self.hA}")
+            print(f"ERROR 2 - STM : self.Dh = {int(self.M_size1 / self.hA)} != {self.M_size1}/{self.hA} \nTry with different num_heads")
 
         self.weight = nn.Parameter(torch.randn(self.M_size1, self.inputshape[1], dtype=self.dtype))
         self.bias = nn.Parameter(torch.zeros(self.inputshape[2], self.inputshape[0] + 1, self.M_size1, dtype=self.dtype))  # S x C x D
@@ -175,7 +175,7 @@ class STM(nn.Module):  # Synchronous transformer module
 
         savespace = torch.zeros(x.shape[2], x.shape[0] + 1, self.M_size1, dtype=self.dtype).to(device)  # C x S x D
         savespace = torch.einsum('lm,jmi -> ijl', self.weight, x)
-        savespace = torch.cat((self.cls, savespace), dim=1)  # ! -> C+1 x S+1 x D
+        savespace = torch.cat((self.cls, savespace), dim=1)  # ! -> from C+1 x S x D to C+1 x S+1 x D
         savespace = torch.add(savespace, self.bias)  # z -> C x S x D
 
         qkvspace = torch.zeros(self.tK, 3, x.shape[2], x.shape[0] + 1, self.hA, self.Dh, dtype=self.dtype).to(device)  # Q, K, V
@@ -220,9 +220,8 @@ class TTM(nn.Module):  # Temporal transformer module
         self.hA = num_heads  # number of multi-head self-attention units (A is the number of units in a block)
         self.Dh = int(self.M_size1 / self.hA)
 
-        # TODO : use padding or truncation for residual elements
         if self.M_size1 % self.hA != 0 or int(self.M_size1 / self.hA) == 0:  # - Dh = 121*(S+1) / num_heads
-            print(f"ERROR 4 - TTM : self.Dh = {self.Dh} != {self.M_size1}/{self.hA}")
+            print(f"ERROR 4 - TTM : self.Dh = {int(self.M_size1 / self.hA)} != {self.M_size1}/{self.hA} \nTry with different num_heads")
 
         self.weight = nn.Parameter(torch.randn(self.M_size1, self.input.shape[1] * self.input.shape[2], dtype=self.dtype))
         self.bias = nn.Parameter(torch.zeros(self.avgf + 1, self.M_size1, dtype=self.dtype))
@@ -275,7 +274,7 @@ class TTM(nn.Module):  # Temporal transformer module
             savespace = self.lnormz(savespace) + savespace
             savespace = self.mlp(savespace)  # new z
 
-        return savespace.reshape(self.avgf, input.shape[1], input.shape[2])
+        return savespace.reshape(self.avgf + 1, input.shape[1], input.shape[2])
 
 
 class CNNdecoder(nn.Module):  # EEGformer decoder
@@ -304,26 +303,28 @@ class CNNdecoder(nn.Module):  # EEGformer decoder
 
 
 class EEGformer(nn.Module):
-    def __init__(self, input, input_channels, kernel_size, num_blocks, num_heads, num_submatrices, CF_second, dtype=torch.float32):
+    def __init__(self, input, input_channels, kernel_size, num_blocks, num_heads_RTM, num_heads_STM, num_heads_TTM, num_submatrices, CF_second, dtype=torch.float32):
         super(EEGformer, self).__init__()
         self.dtype = dtype
         self.ncf = 120
         self.input_channels = input_channels
         self.kernel_size = kernel_size
         self.tK = num_blocks
-        self.hA = num_heads
+        self.hA_rtm = num_heads_RTM
+        self.hA_stm = num_heads_STM
+        self.hA_ttm = num_heads_TTM
         self.avgf = num_submatrices
         self.cfs = CF_second
 
         self.outshape1 = torch.zeros(self.input_channels, self.ncf, input.shape[0] - 3 * (self.kernel_size - 1)).to(device)
         self.outshape2 = torch.zeros(self.outshape1.shape[0], self.outshape1.shape[1] + 1, self.outshape1.shape[2]).to(device)
         self.outshape3 = torch.zeros(self.outshape2.shape[1], self.outshape2.shape[0] + 1, self.outshape2.shape[2]).to(device)
-        self.outshape4 = torch.zeros(self.avgf, self.outshape3.shape[1], self.outshape3.shape[0]).to(device)
+        self.outshape4 = torch.zeros(self.avgf+1, self.outshape3.shape[1], self.outshape3.shape[0]).to(device)
 
         self.odcm = ODCM(input_channels, self.kernel_size, self.dtype)
-        self.rtm = RTM(self.outshape1, self.tK, self.hA, self.dtype)
-        self.stm = STM(self.outshape2, self.tK, self.hA, self.dtype)
-        self.ttm = TTM(self.outshape3, self.avgf, self.tK, self.hA, self.dtype)
+        self.rtm = RTM(self.outshape1, self.tK, self.hA_rtm, self.dtype)
+        self.stm = STM(self.outshape2, self.tK, self.hA_stm, self.dtype)
+        self.ttm = TTM(self.outshape3, self.avgf, self.tK, self.hA_ttm, self.dtype)
         self.cnndecoder = CNNdecoder(self.outshape4, self.cfs, self.dtype)
 
     def forward(self, x):
