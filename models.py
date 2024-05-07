@@ -97,8 +97,8 @@ class RTM(nn.Module):  # Regional transformer module
             print(f"ERROR 1 - RTM : self.Dh({self.Dh}) != {self.M_size1}/{self.hA}")
 
         self.weight = nn.Parameter(torch.randn(self.M_size1, self.inputshape[1], dtype=self.dtype))
-        self.bias = nn.Parameter(torch.zeros(self.inputshape[2], self.inputshape[0] + 1, self.M_size1))  # S x C x D
-        self.cls = nn.Parameter(torch.zeros(self.inputshape[2], 1, self.M_size1))
+        self.bias = nn.Parameter(torch.zeros(self.inputshape[2], self.inputshape[0] + 1, self.M_size1, dtype=self.dtype))  # S x C x D
+        self.cls = nn.Parameter(torch.zeros(self.inputshape[2], 1, self.M_size1, dtype=self.dtype))
         trunc_normal(self.bias, std=.02)
         trunc_normal(self.cls, std=.02)
 
@@ -158,8 +158,8 @@ class STM(nn.Module):  # Synchronous transformer module
             print(f"ERROR 2 - STM : self.Dh({self.Dh}) != {self.M_size1}/{self.hA}")
 
         self.weight = nn.Parameter(torch.randn(self.M_size1, self.inputshape[1], dtype=self.dtype))
-        self.bias = nn.Parameter(torch.zeros(self.inputshape[2], self.inputshape[0] + 1, self.M_size1))  # S x C x D
-        self.cls = nn.Parameter(torch.zeros(self.inputshape[2], 1, self.M_size1))
+        self.bias = nn.Parameter(torch.zeros(self.inputshape[2], self.inputshape[0] + 1, self.M_size1, dtype=self.dtype))  # S x C x D
+        self.cls = nn.Parameter(torch.zeros(self.inputshape[2], 1, self.M_size1, dtype=self.dtype))
         trunc_normal(self.bias, std=.02)
         trunc_normal(self.cls, std=.02)
 
