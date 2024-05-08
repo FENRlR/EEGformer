@@ -137,8 +137,7 @@ class RTM(nn.Module):  # Regional transformer module
             savespace = torch.einsum('nm,ijm -> ijn', self.Wo[a], imv.clone().reshape(self.tK, x.shape[2], x.shape[0] + 1, self.M_size1)[a]) + savespace  # z'
 
             # - normalized by LN() and passed through a multilayer perceptron (MLP)
-            savespace = self.lnormz(savespace) + savespace
-            savespace = self.mlp(savespace)  # new z
+            savespace = self.mlp(self.lnormz(savespace)) + savespace  # new z
 
         return savespace  # S x C x D - z4 in the paper
 
@@ -198,8 +197,7 @@ class STM(nn.Module):  # Synchronous transformer module
             savespace = torch.einsum('nm,ijm -> ijn', self.Wo[a], imv.clone().reshape(self.tK, x.shape[2], x.shape[0] + 1, self.M_size1)[a]) + savespace  # z'
 
             # - normalized by LN() and passed through a multilayer perceptron (MLP)
-            savespace = self.lnormz(savespace) + savespace
-            savespace = self.mlp(savespace)  # new z
+            savespace = self.mlp(self.lnormz(savespace)) + savespace  # new z
 
         return savespace  # C x S x D - z5 in the paper
 
@@ -271,8 +269,7 @@ class TTM(nn.Module):  # Temporal transformer module
             savespace = torch.einsum('nm,im -> in', self.Wo[a], imv.clone().reshape(self.tK, self.avgf + 1, self.M_size1)[a]) + savespace  # z'
 
             # - normalized by LN() and passed through a multilayer perceptron (MLP)
-            savespace = self.lnormz(savespace) + savespace
-            savespace = self.mlp(savespace)  # new z
+            savespace = self.mlp(self.lnormz(savespace)) + savespace# new z
 
         return savespace.reshape(self.avgf + 1, input.shape[1], input.shape[2])
 
