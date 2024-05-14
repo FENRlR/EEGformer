@@ -234,6 +234,8 @@ class TTM(nn.Module):  # Temporal transformer module
         self.softmax = nn.Softmax()
         self.mlp = Mlp(in_features=self.M_size1, hidden_features=int(self.M_size1 * 4), act_layer=nn.GELU, dtype=self.dtype)  # mlp_ratio=4
 
+        self.lnorm_extra = nn.LayerNorm(self.M_size1, dtype=self.dtype) # EXPERIMENTAL
+
     def forward(self, x):
         input = x.transpose(0, 2)  # D x S x C
         inputc = torch.zeros(self.avgf, input.shape[1], input.shape[2], dtype=self.dtype).to(device)  # M x S x C
@@ -269,8 +271,9 @@ class TTM(nn.Module):  # Temporal transformer module
             savespace = torch.einsum('nm,im -> in', self.Wo[a], imv.clone().reshape(self.tK, self.avgf + 1, self.M_size1)[a]) + savespace  # z'
 
             # - normalized by LN() and passed through a multilayer perceptron (MLP)
-            savespace = self.mlp(self.lnormz(savespace)) + savespace# new z
+            savespace = self.mlp(self.lnormz(savespace)) + savespace # new z
 
+        savespace = self.lnorm_extra(savespace) # EXPERIMENTAL
         return savespace.reshape(self.avgf + 1, input.shape[1], input.shape[2])
 
 
@@ -342,6 +345,16 @@ class EEGformer(nn.Module):
         # wt += self.sa(self.odcm.cvf1.weight) + self.sa(self.odcm.cvf2.weight) + self.sa(self.odcm.cvf3.weight)
 
         ls = -(label * torch.log(xf) + (1 - label) * torch.log(1 - xf))
+        ls = torch.mean(ls) + L1_reg_const * wt
+        return ls
+
+
+    def eegloss_w(self, xf, label, L1_reg_const, numpos, numtot):  # Weighted loss - EXPERIMENTAL
+        wt = 0
+        w0 = numtot / (2 * (numtot - numpos))
+        w1 = numtot / (2 * numpos)
+
+        ls = -(w0 * label * torch.log(xf) + w1 * (1 - label) * torch.log(1 - xf))
         ls = torch.mean(ls) + L1_reg_const * wt
         return ls
 
