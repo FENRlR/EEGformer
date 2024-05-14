@@ -91,7 +91,7 @@ modelpath = ""
 if load_pretrain is True:
     model = torch.load(modelpath)
 else:
-    model = models.EEGformer(esrx[0], input_channels, kernel_size, num_blocks, num_heads_rtm, num_heads_stm, num_heads_ttm, num_submatrices, CF_second, dtype)
+    model = models.EEGformer(esrx[0], num_cls, input_channels, kernel_size, num_blocks, num_heads_rtm, num_heads_stm, num_heads_ttm, num_submatrices, CF_second, dtype)
 model.to(device)
 
 
