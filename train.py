@@ -68,6 +68,7 @@ print(esrx[0].shape)
 
 # Parameters
 input_channels = esrx.shape[2]
+num_cls = 2
 kernel_size = 10
 num_blocks = 3  # number of transformer blocks - K in the paper
 

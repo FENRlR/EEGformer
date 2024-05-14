@@ -278,7 +278,7 @@ class TTM(nn.Module):  # Temporal transformer module
 
 
 class CNNdecoder(nn.Module):  # EEGformer decoder
-    def __init__(self, input, CF_second, dtype):  # input -> # M x S x C
+    def __init__(self, input, num_cls, CF_second, dtype):  # input -> # M x S x C
         super(CNNdecoder, self).__init__()
         self.input = input.transpose(0, 1).transpose(1, 2)  # S x C x M
         self.s = self.input.shape[0]  # S
@@ -289,7 +289,7 @@ class CNNdecoder(nn.Module):  # EEGformer decoder
         self.cvd1 = nn.Conv1d(in_channels=self.c, out_channels=1, kernel_size=1, dtype=self.dtype)  # S x M
         self.cvd2 = nn.Conv1d(in_channels=self.s, out_channels=self.n, kernel_size=1, dtype=self.dtype)
         self.cvd3 = nn.Conv1d(in_channels=self.m, out_channels=int(self.m / 2), kernel_size=1, dtype=self.dtype)
-        self.fc = nn.Linear(int(self.m / 2) * self.n, 1, dtype=self.dtype)
+        self.fc = nn.Linear(int(self.m / 2) * self.n, num_cls, dtype=self.dtype)
 
     def forward(self, x):  # x -> M x S x C
         x = x.transpose(0, 1).transpose(1, 2)  # S x C x M
@@ -303,10 +303,11 @@ class CNNdecoder(nn.Module):  # EEGformer decoder
 
 
 class EEGformer(nn.Module):
-    def __init__(self, input, input_channels, kernel_size, num_blocks, num_heads_RTM, num_heads_STM, num_heads_TTM, num_submatrices, CF_second, dtype=torch.float32):
+    def __init__(self, input, num_cls, input_channels, kernel_size, num_blocks, num_heads_RTM, num_heads_STM, num_heads_TTM, num_submatrices, CF_second, dtype=torch.float32):
         super(EEGformer, self).__init__()
         self.dtype = dtype
         self.ncf = 120
+        self.num_cls = num_cls
         self.input_channels = input_channels
         self.kernel_size = kernel_size
         self.tK = num_blocks
@@ -325,7 +326,7 @@ class EEGformer(nn.Module):
         self.rtm = RTM(self.outshape1, self.tK, self.hA_rtm, self.dtype)
         self.stm = STM(self.outshape2, self.tK, self.hA_stm, self.dtype)
         self.ttm = TTM(self.outshape3, self.avgf, self.tK, self.hA_ttm, self.dtype)
-        self.cnndecoder = CNNdecoder(self.outshape4, self.cfs, self.dtype)
+        self.cnndecoder = CNNdecoder(self.outshape4, self.num_cls, self.cfs, self.dtype)
 
     def forward(self, x):
         x = self.odcm(x.transpose(0, 1))
