@@ -22,7 +22,6 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 esrinput = torch.tensor(pd.read_csv("./Epileptic Seizure Recognition/Epileptic Seizure Recognition.csv").values[0:, 1:178].astype(np.float32))
 esrlabel = torch.tensor(pd.read_csv("./Epileptic Seizure Recognition/Epileptic Seizure Recognition.csv").values[0:, 178].astype(np.float32))
 
-# label에서 1이 아닌 경우 모조리 0으로 분류
 for i in range(esrlabel.shape[0]):
     if esrlabel[i] != 1:
         esrlabel[i] = 0
@@ -41,10 +40,8 @@ evalx = esrinput[10500:11500, :]
 evaly = esrlabel[10500:11500]
 
 # scale
-from sklearn.preprocessing import StandardScaler
-
 sc = StandardScaler()
-esrx = sc.fit_transform(esrx)  # AttributeError: 'numpy.ndarray' object has no attribute 'unsqueeze'
+esrx = sc.fit_transform(esrx)
 esrx = torch.tensor(esrx)
 evalx = sc.transform(evalx)
 evalx = torch.tensor(evalx)
