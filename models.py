@@ -348,6 +348,7 @@ class EEGformer(nn.Module):
         # wt += self.sa(self.stm.mlp.fc1.weight) + self.sa(self.stm.mlp.fc2.weight) + self.sa(self.stm.lnorm.weight) + self.sa(self.stm.lnormz.weight) + self.sa(self.stm.Wo) + self.sa(self.stm.Wqkv) + self.sa(self.stm.weight)
         # wt += self.sa(self.rtm.mlp.fc1.weight) + self.sa(self.rtm.mlp.fc2.weight) + self.sa(self.rtm.lnorm.weight) + self.sa(self.rtm.lnormz.weight) + self.sa(self.rtm.Wo) + self.sa(self.rtm.Wqkv) + self.sa(self.rtm.weight)
         # wt += self.sa(self.odcm.cvf1.weight) + self.sa(self.odcm.cvf2.weight) + self.sa(self.odcm.cvf3.weight)
+        wt = 0
 
         #ls = -(label * torch.log(xf[0,0]) + (1 - label) * torch.log(1 - xf[0,1]))
         ls = -(label * torch.log(xf[0,0]) + (1 - label) * torch.log(xf[0,1]))

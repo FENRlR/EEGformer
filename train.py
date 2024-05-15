@@ -85,7 +85,7 @@ dtype = torch.float32
 epoch = 5#100
 bs = 750  # 500
 
-load_pretrain = True#False
+load_pretrain = False
 
 modelpath = "./G_70.pth"
 if load_pretrain is True:
@@ -148,8 +148,8 @@ for i in range(epoch):
             inputs = esrx[j * bs + z].to(dtype).to(device)
             outputs[z] = model(inputs)
 
-        # loss = model.eegloss(outputs, label, L1_reg_const = 0.00005)#L1_reg_const = 0.005
-        loss = model.eegloss_w(outputs, label, 0.00005, truenum, esry.shape[0])  # L1_reg_const = 0.005
+        loss = model.eegloss(outputs, label, L1_reg_const = 0.00005)#L1_reg_const = 0.005
+        #loss = model.eegloss_w(outputs, label, 0.00005, truenum, esry.shape[0])  # L1_reg_const = 0.005
         loss.backward()
         optimizer.step()
         print(f">>> bs {j + 1} -> loss : {loss}")
@@ -160,7 +160,7 @@ for i in range(epoch):
         evlabel = evaly.to(dtype).to(device)
         for z in range(evalx.shape[0]):
             evinputs = evalx[z].to(dtype).to(device)
-            evoutputs[z] = torch.round(torch.max(model(evinputs)))
+            evoutputs[z] = torch.argmax(model(evinputs), dim=1)
 
         # acc,sen,spe = dscm(evoutputs,evlabel)
         tp, fp, tn, fn = dscm(evoutputs, evlabel)
