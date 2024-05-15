@@ -343,15 +343,15 @@ class EEGformer(nn.Module):
 
     def eegloss(self, xf, label, L1_reg_const):  # Loss function for binary classification
         # weight sum of cnndecoder for now
-        wt = self.sa(self.cnndecoder.fc.weight) + self.sa(self.cnndecoder.cvd1.weight) + self.sa(self.cnndecoder.cvd2.weight) + self.sa(self.cnndecoder.cvd3.weight)
+        #wt = self.sa(self.cnndecoder.fc.weight) + self.sa(self.cnndecoder.cvd1.weight) + self.sa(self.cnndecoder.cvd2.weight) + self.sa(self.cnndecoder.cvd3.weight)
         # wt += self.sa(self.ttm.mlp.fc1.weight) + self.sa(self.ttm.mlp.fc2.weight) + self.sa(self.ttm.lnorm.weight) + self.sa(self.ttm.lnormz.weight) + self.sa(self.ttm.Wo) + self.sa(self.ttm.Wqkv) + self.sa(self.ttm.weight)
         # wt += self.sa(self.stm.mlp.fc1.weight) + self.sa(self.stm.mlp.fc2.weight) + self.sa(self.stm.lnorm.weight) + self.sa(self.stm.lnormz.weight) + self.sa(self.stm.Wo) + self.sa(self.stm.Wqkv) + self.sa(self.stm.weight)
         # wt += self.sa(self.rtm.mlp.fc1.weight) + self.sa(self.rtm.mlp.fc2.weight) + self.sa(self.rtm.lnorm.weight) + self.sa(self.rtm.lnormz.weight) + self.sa(self.rtm.Wo) + self.sa(self.rtm.Wqkv) + self.sa(self.rtm.weight)
         # wt += self.sa(self.odcm.cvf1.weight) + self.sa(self.odcm.cvf2.weight) + self.sa(self.odcm.cvf3.weight)
-        #wt = 0
+        wt = 0
 
-        #ls = -(label * torch.log(xf[0,0]) + (1 - label) * torch.log(1 - xf[0,1]))
-        ls = -(label * torch.log(xf[0,0]) + (1 - label) * torch.log(xf[0,1]))
+        #ls = -(label * torch.log(xf[0,0]) - (1 - label) * torch.log(1 - xf[0,1]))
+        ls = -(label * torch.log(xf[0,0]) - (1 - label) * torch.log(xf[0,1]))
         ls = torch.mean(ls) + L1_reg_const * wt
         return ls
 
@@ -361,8 +361,8 @@ class EEGformer(nn.Module):
         w0 = numtot / (2 * (numtot - numpos))
         w1 = numtot / (2 * numpos)
 
-        #ls = -(w0 * label * torch.log(xf[0,0]) + w1 * (1 - label) * torch.log(1 - xf[0,1]))
-        ls = -(w0 * label * torch.log(xf[0,0]) + w1 * (1 - label) * torch.log(xf[0,1]))
+        #ls = -(w0 * label * torch.log(xf[0,0]) - w1 * (1 - label) * torch.log(1 - xf[0,1]))
+        ls = -(w0 * label * torch.log(xf[0,0]) - w1 * (1 - label) * torch.log(xf[0,1]))
         ls = torch.mean(ls) + L1_reg_const * wt
         return ls
 
