@@ -148,8 +148,8 @@ for i in range(epoch):
             inputs = esrx[j * bs + z].to(dtype).to(device)
             outputs[z] = model(inputs)
 
-        loss = model.eegloss(outputs, label, L1_reg_const = 0.00005)#L1_reg_const = 0.005
-        #loss = model.eegloss_w(outputs, label, 0.00005, truenum, esry.shape[0])  # L1_reg_const = 0.005
+        #loss = model.eegloss(outputs, label, L1_reg_const = 0.00005)#L1_reg_const = 0.005
+        loss = model.eegloss_w(outputs, label, 0.00005, truenum, esry.shape[0])  # L1_reg_const = 0.005
         loss.backward()
         optimizer.step()
         print(f">>> bs {j + 1} -> loss : {loss}")

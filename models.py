@@ -361,8 +361,8 @@ class EEGformer(nn.Module):
         w0 = numtot / (2 * (numtot - numpos))
         w1 = numtot / (2 * numpos)
 
-        #ls = -(w0 * label * torch.log(xf[0,1]) + w1 * (1 - label) * torch.log(1 - xf[0,0]))
-        ls = -(w0 * label * torch.log(xf[0,1]) + w1 * (1 - label) * torch.log(xf[0,0]))
+        #ls = -(w1 * label * torch.log(xf[0,1]) + w0 * (1 - label) * torch.log(1 - xf[0,0]))
+        ls = -(w1 * label * torch.log(xf[0,1]) + w0 * (1 - label) * torch.log(xf[0,0]))
         ls = torch.mean(ls) + L1_reg_const * wt
         return ls
 
