@@ -350,8 +350,8 @@ class EEGformer(nn.Module):
         # wt += self.sa(self.odcm.cvf1.weight) + self.sa(self.odcm.cvf2.weight) + self.sa(self.odcm.cvf3.weight)
         wt = 0
 
-        #ls = -(label * torch.log(xf[0,0]) + (1 - label) * torch.log(1 - xf[0,1]))
-        ls = -(label * torch.log(xf[0,0]) + (1 - label) * torch.log(xf[0,1]))
+        #ls = -(label * torch.log(xf[0,1]) + (1 - label) * torch.log(1 - xf[0,0]))
+        ls = -(label * torch.log(xf[0,1]) + (1 - label) * torch.log(xf[0,0]))
         ls = torch.mean(ls) + L1_reg_const * wt
         return ls
 
@@ -361,8 +361,8 @@ class EEGformer(nn.Module):
         w0 = numtot / (2 * (numtot - numpos))
         w1 = numtot / (2 * numpos)
 
-        #ls = -(w0 * label * torch.log(xf[0,0]) + w1 * (1 - label) * torch.log(1 - xf[0,1]))
-        ls = -(w0 * label * torch.log(xf[0,0]) + w1 * (1 - label) * torch.log(xf[0,1]))
+        #ls = -(w0 * label * torch.log(xf[0,1]) + w1 * (1 - label) * torch.log(1 - xf[0,0]))
+        ls = -(w0 * label * torch.log(xf[0,1]) + w1 * (1 - label) * torch.log(xf[0,0]))
         ls = torch.mean(ls) + L1_reg_const * wt
         return ls
 
