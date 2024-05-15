@@ -19,8 +19,8 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 # - Number of Channels : 1
-esrinput = torch.tensor(pd.read_csv("./epileptic-seizure-recognition/Epileptic Seizure Recognition.csv").values[0:, 1:178].astype(np.float32))
-esrlabel = torch.tensor(pd.read_csv("./epileptic-seizure-recognition/Epileptic Seizure Recognition.csv").values[0:, 178].astype(np.float32))
+esrinput = torch.tensor(pd.read_csv("./Epileptic Seizure Recognition/Epileptic Seizure Recognition.csv").values[0:, 1:178].astype(np.float32))
+esrlabel = torch.tensor(pd.read_csv("./Epileptic Seizure Recognition/Epileptic Seizure Recognition.csv").values[0:, 178].astype(np.float32))
 
 # label에서 1이 아닌 경우 모조리 0으로 분류
 for i in range(esrlabel.shape[0]):
@@ -82,12 +82,12 @@ CF_second = 2
 
 # dtype = torch.float16
 dtype = torch.float32
-epoch = 100
+epoch = 5#100
 bs = 750  # 500
 
-load_pretrain = False
+load_pretrain = True#False
 
-modelpath = ""
+modelpath = "./G_70.pth"
 if load_pretrain is True:
     model = torch.load(modelpath)
 else:
@@ -98,7 +98,7 @@ model.to(device)
 num_data = esry.squeeze().shape[0]
 
 # optimizer
-optimizer = torch.optim.AdamW(model.parameters(), lr=1e-04)  # 1e-05
+optimizer = torch.optim.AdamW(model.parameters(), lr=1e-03)  # 1e-05
 
 
 def dscm(x, y):
@@ -142,7 +142,7 @@ if load_pretrain is True:
 for i in range(epoch):
     for j in range((int)(num_data / bs)):
         optimizer.zero_grad()
-        outputs = torch.zeros(bs).to(device)
+        outputs = torch.zeros(bs, num_cls).to(device)
         label = esry[j * bs:j * bs + bs].to(dtype).to(device)
         for z in range(bs):
             inputs = esrx[j * bs + z].to(dtype).to(device)
@@ -160,7 +160,7 @@ for i in range(epoch):
         evlabel = evaly.to(dtype).to(device)
         for z in range(evalx.shape[0]):
             evinputs = evalx[z].to(dtype).to(device)
-            evoutputs[z] = torch.round(model(evinputs))
+            evoutputs[z] = torch.round(torch.max(model(evinputs)))
 
         # acc,sen,spe = dscm(evoutputs,evlabel)
         tp, fp, tn, fn = dscm(evoutputs, evlabel)

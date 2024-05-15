@@ -334,10 +334,14 @@ class EEGformer(nn.Module):
         x = self.stm(x)
         x = self.ttm(x)
         x = self.cnndecoder(x)
+        #print(f"x : {x}") # x : tensor([[ 0.4802, -0.0906]], device='cuda:0', grad_fn=<AddmmBackward0>)
+        #print(f"x : {torch.sigmoid(x)}") # x : tensor([[ 0.4802, -0.0906]], device='cuda:0', grad_fn=<AddmmBackward0>)
+        #print(f"x : {torch.softmax(x, dim = 1)}") # x : tensor([[ 0.4802, -0.0906]], device='cuda:0', grad_fn=<AddmmBackward0>)
+        #print(f"x shape : {x.shape}") # x shape : torch.Size([1, 2])
 
-        return torch.sigmoid(x)  # return x
+        return torch.softmax(x, dim = 1) # torch.sigmoid(x)  # return x
 
-    def eegloss(self, xf, label, L1_reg_const):  # Loss function
+    def eegloss(self, xf, label, L1_reg_const):  # Loss function for binary classification
         # weight sum of cnndecoder for now
         wt = self.sa(self.cnndecoder.fc.weight) + self.sa(self.cnndecoder.cvd1.weight) + self.sa(self.cnndecoder.cvd2.weight) + self.sa(self.cnndecoder.cvd3.weight)
         # wt += self.sa(self.ttm.mlp.fc1.weight) + self.sa(self.ttm.mlp.fc2.weight) + self.sa(self.ttm.lnorm.weight) + self.sa(self.ttm.lnormz.weight) + self.sa(self.ttm.Wo) + self.sa(self.ttm.Wqkv) + self.sa(self.ttm.weight)
@@ -345,17 +349,19 @@ class EEGformer(nn.Module):
         # wt += self.sa(self.rtm.mlp.fc1.weight) + self.sa(self.rtm.mlp.fc2.weight) + self.sa(self.rtm.lnorm.weight) + self.sa(self.rtm.lnormz.weight) + self.sa(self.rtm.Wo) + self.sa(self.rtm.Wqkv) + self.sa(self.rtm.weight)
         # wt += self.sa(self.odcm.cvf1.weight) + self.sa(self.odcm.cvf2.weight) + self.sa(self.odcm.cvf3.weight)
 
-        ls = -(label * torch.log(xf) + (1 - label) * torch.log(1 - xf))
+        #ls = -(label * torch.log(xf[0,0]) + (1 - label) * torch.log(1 - xf[0,1]))
+        ls = -(label * torch.log(xf[0,0]) + (1 - label) * torch.log(xf[0,1]))
         ls = torch.mean(ls) + L1_reg_const * wt
         return ls
 
 
-    def eegloss_w(self, xf, label, L1_reg_const, numpos, numtot):  # Weighted loss - EXPERIMENTAL
+    def eegloss_w(self, xf, label, L1_reg_const, numpos, numtot):  # Weighted loss for binary classification - EXPERIMENTAL
         wt = 0
         w0 = numtot / (2 * (numtot - numpos))
         w1 = numtot / (2 * numpos)
 
-        ls = -(w0 * label * torch.log(xf) + w1 * (1 - label) * torch.log(1 - xf))
+        #ls = -(w0 * label * torch.log(xf[0,0]) + w1 * (1 - label) * torch.log(1 - xf[0,1]))
+        ls = -(w0 * label * torch.log(xf[0,0]) + w1 * (1 - label) * torch.log(xf[0,1]))
         ls = torch.mean(ls) + L1_reg_const * wt
         return ls
 
