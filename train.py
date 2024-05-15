@@ -1,4 +1,4 @@
-# Conceptual demonstration of training script. - Not for actual use.
+# Example of training script
 import numpy as np
 import pandas as pd
 import os
@@ -54,7 +54,7 @@ print(esrx.shape)
 print(evalx.shape)
 
 
-# when number of channels = 1
+# when the number of channels = 1
 print(len(list(esrx.shape)))
 if len(list(esrx.shape)) == 2:
     esrx = esrx.unsqueeze(2)
@@ -155,7 +155,7 @@ for i in range(epoch):
     with torch.no_grad():
         evoutputs = torch.zeros(evalx.shape[0]).to(device)
         evlabel = evaly.to(dtype).to(device)
-        for z in range(evalx.shape[0]):
+        for z in range(evoutputs.shape[0]):
             evinputs = evalx[z].to(dtype).to(device)
             evoutputs[z] = torch.argmax(model(evinputs), dim=1)
 
