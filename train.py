@@ -142,7 +142,7 @@ for i in range(epoch):
         optimizer.zero_grad()
         outputs = torch.zeros(bs, num_cls).to(device)
         label = esry[j * bs:j * bs + bs].to(dtype).to(device)
-        label = F.one_hot(label, num_classes=num_cls)
+        label = F.one_hot(label.long(), num_classes=num_cls) # one hot
 
         for z in range(bs):
             inputs = esrx[j * bs + z].to(dtype).to(device)
