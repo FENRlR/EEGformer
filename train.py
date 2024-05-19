@@ -80,7 +80,7 @@ CF_second = 2
 
 # dtype = torch.float16
 dtype = torch.float32
-epoch = 5#100
+epoch = 500#100
 bs = 750#500
 
 keep_latest3 = True
@@ -98,7 +98,7 @@ model.to(device)
 num_data = esry.squeeze().shape[0]
 
 # optimizer
-optimizer = torch.optim.AdamW(model.parameters(), lr=1e-03)  # 1e-05
+optimizer = torch.optim.AdamW(model.parameters(), lr=5e-04)  # 1e-05
 
 
 def dscm(x, y):
