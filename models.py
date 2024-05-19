@@ -339,7 +339,8 @@ class EEGformer(nn.Module):
         return torch.softmax(x, dim=1)
 
 
-    def eegloss(self, xf, label, L1_reg_const):  # Loss function
+    # CE - uses one hot encoded label or similar(such as multi class probability label)
+    def eegloss(self, xf, label, L1_reg_const):  # CE Loss with L1 regularization
         wt = self.sa(self.cnndecoder.fc.weight) + self.sa(self.cnndecoder.cvd1.weight) + self.sa(self.cnndecoder.cvd2.weight) + self.sa(self.cnndecoder.cvd3.weight)
         wt += self.sa(self.ttm.mlp.fc1.weight) + self.sa(self.ttm.mlp.fc2.weight) + self.sa(self.ttm.lnorm.weight) + self.sa(self.ttm.lnormz.weight) + self.sa(self.ttm.Wo) + self.sa(self.ttm.Wqkv) + self.sa(self.ttm.weight)
         wt += self.sa(self.stm.mlp.fc1.weight) + self.sa(self.stm.mlp.fc2.weight) + self.sa(self.stm.lnorm.weight) + self.sa(self.stm.lnormz.weight) + self.sa(self.stm.Wo) + self.sa(self.stm.Wqkv) + self.sa(self.stm.weight)
@@ -350,7 +351,6 @@ class EEGformer(nn.Module):
         ls = torch.mean(ls) + L1_reg_const * wt
 
         return ls
-
 
     def eegloss_light(self, xf, label, L1_reg_const): # takes the weight sum of cnndecoder only
         wt = self.sa(self.cnndecoder.fc.weight) + self.sa(self.cnndecoder.cvd1.weight) + self.sa(self.cnndecoder.cvd2.weight) + self.sa(self.cnndecoder.cvd3.weight)
@@ -363,12 +363,13 @@ class EEGformer(nn.Module):
         ls = torch.mean(ls)
         return ls
 
-    def bceloss(self, xf, label):  # BCEloss
+    # BCE - uses label as it is
+    def bceloss(self, xf, label):  # BCE loss
         ls = -(label * torch.log(xf[:,1]) + (1 - label) * torch.log(xf[:,0]))
         ls = torch.mean(ls)
         return ls
 
-    def bceloss_w(self, xf, label, numpos, numtot):  # Weighted BCEloss
+    def bceloss_w(self, xf, label, numpos, numtot):  # Weighted BCE loss
         w0 = numtot / (2 * (numtot - numpos))
         w1 = numtot / (2 * numpos)
         ls = -(w1 * label * torch.log(xf[:,1]) + w0 * (1 - label) * torch.log(xf[:,0]))

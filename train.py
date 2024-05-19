@@ -81,7 +81,9 @@ CF_second = 2
 # dtype = torch.float16
 dtype = torch.float32
 epoch = 5#100
-bs = 750  # 500
+bs = 750#500
+
+keep_latest3 = True
 
 load_pretrain = False
 
@@ -96,7 +98,7 @@ model.to(device)
 num_data = esry.squeeze().shape[0]
 
 # optimizer
-optimizer = torch.optim.AdamW(model.parameters(), lr=1e-04)  # 1e-05
+optimizer = torch.optim.AdamW(model.parameters(), lr=1e-03)  # 1e-05
 
 
 def dscm(x, y):
@@ -115,7 +117,7 @@ def dscm(x, y):
 
     # acc = (tp+tn)/(tp + fp + tn + fn)
     # sen = tp/(tp+fn)
-    # spe = tn/(tn+fp) # ZeroDivisionError
+    # spe = tn/(tn+fp)
     if (tp + fp + tn + fn) != 0:
         print(f"acc = {(tp + tn) / (tp + fp + tn + fn)}")
     else:
@@ -142,14 +144,14 @@ for i in range(epoch):
         optimizer.zero_grad()
         outputs = torch.zeros(bs, num_cls).to(device)
         label = esry[j * bs:j * bs + bs].to(dtype).to(device)
-        label = F.one_hot(label.long(), num_classes=num_cls) # one hot
+        #label = F.one_hot(label.long(), num_classes=num_cls) # one hot - for eegloss, eegloss_light, and eegloss_wol1
 
         for z in range(bs):
             inputs = esrx[j * bs + z].to(dtype).to(device)
             outputs[z] = model(inputs)
 
-        loss = model.eegloss_wol1(outputs, label)#L1_reg_const = 0.005
-        #loss = model.bceloss_w(outputs, label, truenum, esry.shape[0])
+        #loss = model.eegloss_wol1(outputs, label)#L1_reg_const = 0.005
+        loss = model.bceloss_w(outputs, label, truenum, esry.shape[0])
         loss.backward()
         optimizer.step()
         print(f">>> bs {j + 1} -> loss : {loss}")
@@ -168,4 +170,9 @@ for i in range(epoch):
         print(f">>> epoch {i + 1} -> tp : {tp}, fp : {fp}, tn : {tn}, fn : {fn}")  # tp, fp, tn, fn
 
     torch.save(model, f'G_{preload + int(num_data / bs * (i + 1))}.pth')
+    if keep_latest3 is True:
+        delpath = f'./G_{preload + int(num_data / bs * (i - 2))}.pth'
+        if os.path.exists(delpath):
+            os.remove(delpath)
+
     print(f'saved : G_{preload + int(num_data / bs * (i + 1))}.pth')
