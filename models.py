@@ -370,7 +370,6 @@ class EEGformer(nn.Module):
         ls = -(label * torch.log(xf[:,1]) + (1 - label) * torch.log(xf[:,0]))
         ls = torch.mean(ls)
         return ls
-
     def bceloss_w(self, xf, label, numpos, numtot):  # Weighted BCEloss
         w0 = numtot / (2 * (numtot - numpos))
         w1 = numtot / (2 * numpos)

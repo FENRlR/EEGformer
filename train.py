@@ -6,6 +6,7 @@ from glob import glob
 import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import math
 from sklearn.preprocessing import StandardScaler
 import models
@@ -141,12 +142,14 @@ for i in range(epoch):
         optimizer.zero_grad()
         outputs = torch.zeros(bs, num_cls).to(device)
         label = esry[j * bs:j * bs + bs].to(dtype).to(device)
+        label = F.one_hot(label, num_classes=num_cls)
+
         for z in range(bs):
             inputs = esrx[j * bs + z].to(dtype).to(device)
             outputs[z] = model(inputs)
 
-        #loss = model.eegloss(outputs, label, L1_reg_const = 0.00005)#L1_reg_const = 0.005
-        loss = model.bceloss_w(outputs, label, truenum, esry.shape[0])
+        loss = model.eegloss_wol1(outputs, label)#L1_reg_const = 0.005
+        #loss = model.bceloss_w(outputs, label, truenum, esry.shape[0])
         loss.backward()
         optimizer.step()
         print(f">>> bs {j + 1} -> loss : {loss}")
