@@ -46,10 +46,10 @@ esrx = torch.tensor(esrx)
 evalx = sc.transform(evalx)
 evalx = torch.tensor(evalx)
 
-print("sample : ")
+print("Sample : ")
 print(esrx)
 
-print("shapes : ")
+print("Shapes : ")
 print(esrx.shape)
 print(evalx.shape)
 
@@ -84,7 +84,7 @@ bs = 750  # 500
 
 load_pretrain = False
 
-modelpath = "./G_70.pth"
+modelpath = ""
 if load_pretrain is True:
     model = torch.load(modelpath)
 else:
@@ -95,7 +95,7 @@ model.to(device)
 num_data = esry.squeeze().shape[0]
 
 # optimizer
-optimizer = torch.optim.AdamW(model.parameters(), lr=1e-03)  # 1e-05
+optimizer = torch.optim.AdamW(model.parameters(), lr=1e-04)  # 1e-05
 
 
 def dscm(x, y):
@@ -146,7 +146,7 @@ for i in range(epoch):
             outputs[z] = model(inputs)
 
         #loss = model.eegloss(outputs, label, L1_reg_const = 0.00005)#L1_reg_const = 0.005
-        loss = model.eegloss_w(outputs, label, 0.00005, truenum, esry.shape[0])  # L1_reg_const = 0.005
+        loss = model.bceloss_w(outputs, label, truenum, esry.shape[0])
         loss.backward()
         optimizer.step()
         print(f">>> bs {j + 1} -> loss : {loss}")

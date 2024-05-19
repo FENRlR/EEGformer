@@ -56,7 +56,8 @@ if len(list(esrx.shape)) == 2:
 dtype = torch.float32
 
 
-modelpath = "./G_140.pth"
+modelpath = ""
+print(f">> {modelpath.split('/')[1]}")
 model = torch.load(modelpath)
 model.to(device)
 
