@@ -363,7 +363,7 @@ class EEGformer(nn.Module):
         ls = torch.mean(ls)
         return ls
 
-    # BCE - uses label as it is
+    # BCE - does not need one hot encoding
     def bceloss(self, xf, label):  # BCE loss
         ls = -(label * torch.log(xf[:,1]) + (1 - label) * torch.log(xf[:,0]))
         ls = torch.mean(ls)
