@@ -346,7 +346,6 @@ class EEGformer(nn.Module):
         wt += self.sa(self.rtm.mlp.fc1.weight) + self.sa(self.rtm.mlp.fc2.weight) + self.sa(self.rtm.lnorm.weight) + self.sa(self.rtm.lnormz.weight) + self.sa(self.rtm.Wo) + self.sa(self.rtm.Wqkv) + self.sa(self.rtm.weight)
         wt += self.sa(self.odcm.cvf1.weight) + self.sa(self.odcm.cvf2.weight) + self.sa(self.odcm.cvf3.weight)
 
-        #sublabel = F.one_hot(label, num_classes=self.num_cls)
         ls = -(label * torch.log(xf) + (1 - label) * torch.log(1 - xf))
         ls = torch.mean(ls) + L1_reg_const * wt
 
@@ -355,13 +354,11 @@ class EEGformer(nn.Module):
 
     def eegloss_light(self, xf, label, L1_reg_const): # takes the weight sum of cnndecoder only
         wt = self.sa(self.cnndecoder.fc.weight) + self.sa(self.cnndecoder.cvd1.weight) + self.sa(self.cnndecoder.cvd2.weight) + self.sa(self.cnndecoder.cvd3.weight)
-        # sublabel = F.one_hot(label, num_classes=self.num_cls)
         ls = -(label * torch.log(xf) + (1 - label) * torch.log(1 - xf))
         ls = torch.mean(ls) + L1_reg_const * wt
         return ls
 
     def eegloss_wol1(self, xf, label): # without L1
-        # sublabel = F.one_hot(label, num_classes=self.num_cls)
         ls = -(label * torch.log(xf) + (1 - label) * torch.log(1 - xf))
         ls = torch.mean(ls)
         return ls
@@ -370,10 +367,10 @@ class EEGformer(nn.Module):
         ls = -(label * torch.log(xf[:,1]) + (1 - label) * torch.log(xf[:,0]))
         ls = torch.mean(ls)
         return ls
+
     def bceloss_w(self, xf, label, numpos, numtot):  # Weighted BCEloss
         w0 = numtot / (2 * (numtot - numpos))
         w1 = numtot / (2 * numpos)
-
         ls = -(w1 * label * torch.log(xf[:,1]) + w0 * (1 - label) * torch.log(xf[:,0]))
         ls = torch.mean(ls)
         return ls
