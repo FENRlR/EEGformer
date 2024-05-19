@@ -345,34 +345,24 @@ class EEGformer(nn.Module):
         wt += self.sa(self.stm.mlp.fc1.weight) + self.sa(self.stm.mlp.fc2.weight) + self.sa(self.stm.lnorm.weight) + self.sa(self.stm.lnormz.weight) + self.sa(self.stm.Wo) + self.sa(self.stm.Wqkv) + self.sa(self.stm.weight)
         wt += self.sa(self.rtm.mlp.fc1.weight) + self.sa(self.rtm.mlp.fc2.weight) + self.sa(self.rtm.lnorm.weight) + self.sa(self.rtm.lnormz.weight) + self.sa(self.rtm.Wo) + self.sa(self.rtm.Wqkv) + self.sa(self.rtm.weight)
         wt += self.sa(self.odcm.cvf1.weight) + self.sa(self.odcm.cvf2.weight) + self.sa(self.odcm.cvf3.weight)
-        
 
-        
-        ls = torch.zeros(xf.shape[0])
-        for i in range(self.num_cls):
-            sublabel = torch.where(label == i, 1.0, 0.0)
-            ls += -(sublabel * torch.log(xf[:, i]) + (1 - sublabel) * torch.log(1-xf[:, i]))
-
+        #sublabel = F.one_hot(label, num_classes=self.num_cls)
+        ls = -(label * torch.log(xf) + (1 - label) * torch.log(1 - xf))
         ls = torch.mean(ls) + L1_reg_const * wt
+
         return ls
 
 
     def eegloss_light(self, xf, label, L1_reg_const): # takes the weight sum of cnndecoder only
         wt = self.sa(self.cnndecoder.fc.weight) + self.sa(self.cnndecoder.cvd1.weight) + self.sa(self.cnndecoder.cvd2.weight) + self.sa(self.cnndecoder.cvd3.weight)
-        ls = torch.zeros(xf.shape[0])
-        for i in range(self.num_cls):
-            sublabel = torch.where(label == i, 1.0, 0.0)
-            ls += -(sublabel * torch.log(xf[:, i]) + (1 - sublabel) * torch.log(1 - xf[:, i]))
-
+        # sublabel = F.one_hot(label, num_classes=self.num_cls)
+        ls = -(label * torch.log(xf) + (1 - label) * torch.log(1 - xf))
         ls = torch.mean(ls) + L1_reg_const * wt
         return ls
 
     def eegloss_wol1(self, xf, label): # without L1
-        ls = torch.zeros(xf.shape[0])
-        for i in range(self.num_cls):
-            sublabel = torch.where(label == i, 1.0, 0.0)
-            ls += -(sublabel * torch.log(xf[:, i]) + (1 - sublabel) * torch.log(1 - xf[:, i]))
-
+        # sublabel = F.one_hot(label, num_classes=self.num_cls)
+        ls = -(label * torch.log(xf) + (1 - label) * torch.log(1 - xf))
         ls = torch.mean(ls)
         return ls
 
