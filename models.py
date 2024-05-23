@@ -122,6 +122,7 @@ class RTM(nn.Module):  # Regional transformer module
         rsaspace = torch.zeros(self.tK, x.shape[2], x.shape[0] + 1, self.hA, dtype=self.dtype).to(device)
         imv = torch.zeros(self.tK, x.shape[2], x.shape[0] + 1, self.hA, self.Dh, dtype=self.dtype).to(device)
 
+        # TODO : generic blocks for parameter separation
         for a in range(self.tK):  # blocks(layer)
             qkvspace[a] = torch.einsum('xhdm,ijm -> xijhd', self.Wqkv[a], self.lnorm(savespace))  # Q, K, V
 
@@ -131,6 +132,7 @@ class RTM(nn.Module):  # Regional transformer module
             # - Intermediate vectors
             imv[a] = torch.einsum('ijh,ijhd -> ijhd', rsaspace[a].clone(), qkvspace[a, 2].clone())
 
+            # TODO : fix interpretation of sigma
             for subj in range(1, self.inputshape[0]):
                 imv[a, :, subj] = imv[a, :, subj] + imv[a, :, subj - 1]
 
