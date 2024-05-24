@@ -126,6 +126,7 @@ class RTM(nn.Module):  # Regional transformer module
         for a in range(self.tK):  # blocks(layer)
             qkvspace[a] = torch.einsum('xhdm,ijm -> xijhd', self.Wqkv[a], self.lnorm(savespace))  # Q, K, V
 
+            # TODO : transpose -> dot
             # - Attention score
             rsaspace[a] = torch.einsum('ijhd,ijhd -> ijh', qkvspace[a, 0].clone() / math.sqrt(self.Dh), qkvspace[a, 1].clone())
 
@@ -133,8 +134,8 @@ class RTM(nn.Module):  # Regional transformer module
             imv[a] = torch.einsum('ijh,ijhd -> ijhd', rsaspace[a].clone(), qkvspace[a, 2].clone())
 
             # TODO : fix interpretation of sigma
-            for subj in range(1, self.inputshape[0]):
-                imv[a, :, subj] = imv[a, :, subj] + imv[a, :, subj - 1]
+            #for subj in range(1, self.inputshape[0]):
+            #    imv[a, :, subj] = imv[a, :, subj] + imv[a, :, subj - 1]
 
             # - NOW SAY HELLO TO NEW Z!
             savespace = torch.einsum('nm,ijm -> ijn', self.Wo[a], imv.clone().reshape(self.tK, x.shape[2], x.shape[0] + 1, self.M_size1)[a]) + savespace  # z'
@@ -193,8 +194,8 @@ class STM(nn.Module):  # Synchronous transformer module
             # - Intermediate vectors
             imv[a] = torch.einsum('ijh,ijhd -> ijhd', rsaspace[a].clone(), qkvspace[a, 2].clone())
 
-            for subj in range(1, x.shape[0]):
-                imv[a, :, subj] = imv[a, :, subj] + imv[a, :, subj - 1]
+            #for subj in range(1, x.shape[0]):
+            #    imv[a, :, subj] = imv[a, :, subj] + imv[a, :, subj - 1]
 
             # - NOW SAY HELLO TO NEW Z!
             savespace = torch.einsum('nm,ijm -> ijn', self.Wo[a], imv.clone().reshape(self.tK, x.shape[2], x.shape[0] + 1, self.M_size1)[a]) + savespace  # z'
@@ -267,8 +268,8 @@ class TTM(nn.Module):  # Temporal transformer module
             # - Intermediate vectors
             imv[a] = torch.einsum('ih,ihd -> ihd', rsaspace[a].clone(), qkvspace[a, 2].clone())
 
-            for subj in range(1, self.avgf):
-                imv[a, subj] = imv[a, subj] + imv[a, subj - 1]
+            #for subj in range(1, self.avgf):
+            #    imv[a, subj] = imv[a, subj] + imv[a, subj - 1]
 
             # - NOW SAY HELLO TO NEW Z!
             savespace = torch.einsum('nm,im -> in', self.Wo[a], imv.clone().reshape(self.tK, self.avgf + 1, self.M_size1)[a]) + savespace  # z'
