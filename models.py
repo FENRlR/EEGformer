@@ -126,7 +126,6 @@ class RTM(nn.Module):  # Regional transformer module
         for a in range(self.tK):  # blocks(layer)
             qkvspace[a] = torch.einsum('xhdm,ijm -> xijhd', self.Wqkv[a], self.lnorm(savespace))  # Q, K, V
 
-            # TODO : transpose -> dot
             # - Attention score
             rsaspace[a] = torch.einsum('ijhd,ijhd -> ijh', qkvspace[a, 0].clone() / math.sqrt(self.Dh), qkvspace[a, 1].clone())
 
