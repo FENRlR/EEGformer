@@ -118,8 +118,9 @@ class RTM(nn.Module):  # Regional transformer module
         savespace = torch.cat((self.cls, savespace), dim=1)  # ! -> S x (C+1) x D
         savespace = torch.add(savespace, self.bias)  # z -> S x C x D
 
-        qkvspace = torch.zeros(self.tK, 3, x.shape[2], x.shape[0] + 1, self.hA, self.Dh, dtype=self.dtype).to(device)  # Q, K, V
-        rsaspace = torch.zeros(self.tK, x.shape[2], x.shape[0] + 1, self.hA, dtype=self.dtype).to(device)
+        qkvspace = torch.zeros(self.tK, 3, x.shape[2], x.shape[0] + 1, self.hA, self.Dh, dtype=self.dtype).to(device)  # Q, K, V (nb, 3, B, N, h, C)
+        #rsaspace = torch.zeros(self.tK, x.shape[2], x.shape[0] + 1, self.hA, dtype=self.dtype).to(device)
+        rsaspace = torch.zeros(self.tK, x.shape[2], self.hA, x.shape[0] + 1, x.shape[0] + 1, dtype=self.dtype).to(device) # b,h,n,c @ b,h,c,n = b, h, n, n
         imv = torch.zeros(self.tK, x.shape[2], x.shape[0] + 1, self.hA, self.Dh, dtype=self.dtype).to(device)
 
         # TODO : generic blocks for parameter separation
@@ -127,12 +128,13 @@ class RTM(nn.Module):  # Regional transformer module
             qkvspace[a] = torch.einsum('xhdm,ijm -> xijhd', self.Wqkv[a], self.lnorm(savespace))  # Q, K, V
 
             # - Attention score
-            rsaspace[a] = torch.einsum('ijhd,ijhd -> ijh', qkvspace[a, 0].clone() / math.sqrt(self.Dh), qkvspace[a, 1].clone())
+            #rsaspace[a] = torch.einsum('ijhd,ijhd -> ijh', qkvspace[a, 0].clone() / math.sqrt(self.Dh), qkvspace[a, 1].clone())
+            rsaspace[a] = (qkvspace[a, 0].clone().transpose(1, 2) / math.sqrt(self.Dh)) @ qkvspace[a, 1].clone().transpose(1,2).transpose(-2, -1) # b,h,n,c @ b,h,c,n = b, h, n, n
 
             # - Intermediate vectors
-            imv[a] = torch.einsum('ijh,ijhd -> ijhd', rsaspace[a].clone(), qkvspace[a, 2].clone())
+            #imv[a] = torch.einsum('ijh,ijhd -> ijhd', rsaspace[a].clone(), qkvspace[a, 2].clone())
+            imv[a] = (rsaspace[a].clone() @ qkvspace[a, 2].clone().transpose(1, 2)).transpose(1, 2) # b,h,n,c -> transposed to b,n,h,c
 
-            # TODO : fix interpretation of sigma
             #for subj in range(1, self.inputshape[0]):
             #    imv[a, :, subj] = imv[a, :, subj] + imv[a, :, subj - 1]
 
@@ -181,17 +183,20 @@ class STM(nn.Module):  # Synchronous transformer module
         savespace = torch.add(savespace, self.bias)  # z -> C x S x D
 
         qkvspace = torch.zeros(self.tK, 3, x.shape[2], x.shape[0] + 1, self.hA, self.Dh, dtype=self.dtype).to(device)  # Q, K, V
-        rsaspace = torch.zeros(self.tK, x.shape[2], x.shape[0] + 1, self.hA, dtype=self.dtype).to(device)
+        #rsaspace = torch.zeros(self.tK, x.shape[2], x.shape[0] + 1, self.hA, dtype=self.dtype).to(device)
+        rsaspace = torch.zeros(self.tK, x.shape[2], self.hA, x.shape[0] + 1, x.shape[0] + 1, dtype=self.dtype).to(device)  # b,h,n,c @ b,h,c,n = b, h, n, n
         imv = torch.zeros(self.tK, x.shape[2], x.shape[0] + 1, self.hA, self.Dh, dtype=self.dtype).to(device)
 
         for a in range(self.tK):  # blocks(layer)
             qkvspace[a] = torch.einsum('xhdm,ijm -> xijhd', self.Wqkv[a], self.lnorm(savespace))  # Q, K, V
 
             # - Attention score
-            rsaspace[a] = torch.einsum('ijhd,ijhd -> ijh', qkvspace[a, 0].clone() / math.sqrt(self.Dh), qkvspace[a, 1].clone())
+            #rsaspace[a] = torch.einsum('ijhd,ijhd -> ijh', qkvspace[a, 0].clone() / math.sqrt(self.Dh), qkvspace[a, 1].clone())
+            rsaspace[a] = (qkvspace[a, 0].clone().transpose(1, 2) / math.sqrt(self.Dh)) @ qkvspace[a, 1].clone().transpose(1,2).transpose(-2, -1)
 
             # - Intermediate vectors
-            imv[a] = torch.einsum('ijh,ijhd -> ijhd', rsaspace[a].clone(), qkvspace[a, 2].clone())
+            #imv[a] = torch.einsum('ijh,ijhd -> ijhd', rsaspace[a].clone(), qkvspace[a, 2].clone())
+            imv[a] = (rsaspace[a].clone() @ qkvspace[a, 2].clone().transpose(1, 2)).transpose(1, 2)
 
             #for subj in range(1, x.shape[0]):
             #    imv[a, :, subj] = imv[a, :, subj] + imv[a, :, subj - 1]
@@ -255,17 +260,20 @@ class TTM(nn.Module):  # Temporal transformer module
         savespace = torch.add(savespace, self.bias)  # z -> M x D
 
         qkvspace = torch.zeros(self.tK, 3, self.avgf + 1, self.hA, self.Dh, dtype=self.dtype).to(device)  # Q, K, V
-        rsaspace = torch.zeros(self.tK, self.avgf + 1, self.hA, dtype=self.dtype).to(device)  # space for attention score
+        #rsaspace = torch.zeros(self.tK, self.avgf + 1, self.hA, dtype=self.dtype).to(device)  # space for attention score
+        rsaspace = torch.zeros(self.tK, self.hA, self.avgf + 1, self.avgf + 1, dtype=self.dtype).to(device)
         imv = torch.zeros(self.tK, self.avgf + 1, self.hA, self.Dh, dtype=self.dtype).to(device)
 
         for a in range(self.tK):  # blocks(layer)
             qkvspace[a] = torch.einsum('xhdm,im -> xihd', self.Wqkv[a], self.lnorm(savespace))  # Q, K, V
 
             # - Attention score
-            rsaspace[a] = torch.einsum('ihd,ihd -> ih', qkvspace[a, 0].clone() / math.sqrt(self.Dh), qkvspace[a, 1].clone())
+            #rsaspace[a] = torch.einsum('ihd,ihd -> ih', qkvspace[a, 0].clone() / math.sqrt(self.Dh), qkvspace[a, 1].clone())
+            rsaspace[a] = (qkvspace[a, 0].clone().transpose(0, 1) / math.sqrt(self.Dh)) @ qkvspace[a, 1].clone().transpose(0,1).transpose(-2, -1)
 
             # - Intermediate vectors
-            imv[a] = torch.einsum('ih,ihd -> ihd', rsaspace[a].clone(), qkvspace[a, 2].clone())
+            #imv[a] = torch.einsum('ih,ihd -> ihd', rsaspace[a].clone(), qkvspace[a, 2].clone())
+            imv[a] = (rsaspace[a].clone() @ qkvspace[a,2].clone().transpose(0, 1)).transpose(0, 1)
 
             #for subj in range(1, self.avgf):
             #    imv[a, subj] = imv[a, subj] + imv[a, subj - 1]
