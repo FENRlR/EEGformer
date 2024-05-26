@@ -119,6 +119,44 @@ class GenericTFB(nn.Module):
         return savespace
 
 
+class TemporalTFB(nn.Module):
+    def __init__(self, emb_size, num_heads, avgf, dtype):
+        super(TemporalTFB, self).__init__()
+
+        self.avgf = avgf  # average factor (M)
+        self.M_size1 = emb_size  # -> D
+        self.dtype = dtype
+        self.hA = num_heads  # number of multi-head self-attention units (A is the number of units in a block)
+        self.Dh = int(self.M_size1 / self.hA)  # Dh is the quotient computed by D/A and denotes the dimension number of three vectors.
+        self.Wqkv = nn.Parameter(torch.randn((3, self.hA, self.Dh, self.M_size1), dtype=self.dtype))
+        self.Wo = nn.Parameter(torch.randn(self.M_size1, self.M_size1, dtype=self.dtype))
+
+        self.lnorm = nn.LayerNorm(self.M_size1, dtype=self.dtype)  # LayerNorm operation for dimension D
+        self.lnormz = nn.LayerNorm(self.M_size1, dtype=self.dtype)  # LayerNorm operation for z
+        self.mlp = Mlp(in_features=self.M_size1, hidden_features=int(self.M_size1 * 4), act_layer=nn.GELU, dtype=self.dtype)  # mlp_ratio=4
+
+    def forward(self, x, savespace):
+        qkvspace = torch.zeros(3, self.avgf + 1, self.hA, self.Dh, dtype=self.dtype).to(device)  # Q, K, V
+        rsaspace = torch.zeros(self.hA, self.avgf + 1, self.avgf + 1, dtype=self.dtype).to(device)
+        imv = torch.zeros(self.avgf + 1, self.hA, self.Dh, dtype=self.dtype).to(device)
+
+        qkvspace = torch.einsum('xhdm,im -> xihd', self.Wqkv, self.lnorm(savespace))  # Q, K, V
+
+        # - Attention score
+        atspace = (qkvspace[0].clone().transpose(0, 1) / math.sqrt(self.Dh)) @ qkvspace[1].clone().transpose(0, 1).transpose(-2, -1)
+
+        # - Intermediate vectors
+        imv = (rsaspace.clone() @ qkvspace[2].clone().transpose(0, 1)).transpose(0, 1)
+
+        # - NOW SAY HELLO TO NEW Z!
+        savespace = torch.einsum('nm,im -> in', self.Wo, imv.clone().reshape(self.avgf + 1, self.M_size1)) + savespace  # z'
+
+        # - normalized by LN() and passed through a multilayer perceptron (MLP)
+        savespace = self.mlp(self.lnormz(savespace)) + savespace  # new z
+
+        return savespace
+
+
 class RTM(nn.Module):  # Regional transformer module
     def __init__(self, input, num_blocks, num_heads, dtype):  # input -> S x C x D
         super(RTM, self).__init__()
@@ -229,8 +267,8 @@ class TTM(nn.Module):  # Temporal transformer module
         self.Wo = nn.Parameter(torch.randn(self.tK, self.M_size1, self.M_size1, dtype=self.dtype))
         self.lnorm = nn.LayerNorm(self.M_size1, dtype=self.dtype)  # LayerNorm operation for dimension D
         self.lnormz = nn.LayerNorm(self.M_size1, dtype=self.dtype)  # LayerNorm operation for z
-        self.softmax = nn.Softmax()
         self.mlp = Mlp(in_features=self.M_size1, hidden_features=int(self.M_size1 * 4), act_layer=nn.GELU, dtype=self.dtype)  # mlp_ratio=4
+        self.tfb = nn.ModuleList([TemporalTFB(self.M_size1, self.hA, self.avgf, self.dtype) for _ in range(self.tK)])
 
         self.lnorm_extra = nn.LayerNorm(self.M_size1, dtype=self.dtype)  # EXPERIMENTAL
 
@@ -249,28 +287,8 @@ class TTM(nn.Module):  # Temporal transformer module
         savespace = torch.cat((self.cls, savespace), dim=0)
         savespace = torch.add(savespace, self.bias)  # z -> M x D
 
-        # TODO : generic tf blocks for TTM
-        qkvspace = torch.zeros(self.tK, 3, self.avgf + 1, self.hA, self.Dh, dtype=self.dtype).to(device)  # Q, K, V
-        rsaspace = torch.zeros(self.tK, self.avgf + 1, self.hA, dtype=self.dtype).to(device)  # space for attention score
-        imv = torch.zeros(self.tK, self.avgf + 1, self.hA, self.Dh, dtype=self.dtype).to(device)
-
-        for a in range(self.tK):  # blocks(layer)
-            qkvspace[a] = torch.einsum('xhdm,im -> xihd', self.Wqkv[a], self.lnorm(savespace))  # Q, K, V
-
-            # - Attention score
-            rsaspace[a] = torch.einsum('ihd,ihd -> ih', qkvspace[a, 0].clone() / math.sqrt(self.Dh), qkvspace[a, 1].clone())
-
-            # - Intermediate vectors
-            imv[a] = torch.einsum('ih,ihd -> ihd', rsaspace[a].clone(), qkvspace[a, 2].clone())
-
-            for subj in range(1, self.avgf):
-                imv[a, subj] = imv[a, subj] + imv[a, subj - 1]
-
-            # - NOW SAY HELLO TO NEW Z!
-            savespace = torch.einsum('nm,im -> in', self.Wo[a], imv.clone().reshape(self.tK, self.avgf + 1, self.M_size1)[a]) + savespace  # z'
-
-            # - normalized by LN() and passed through a multilayer perceptron (MLP)
-            savespace = self.mlp(self.lnormz(savespace)) + savespace  # new z
+        for tfb in self.tfb:
+            savespace = tfb(x, savespace)
 
         savespace = self.lnorm_extra(savespace)  # EXPERIMENTAL
         return savespace.reshape(self.avgf + 1, input.shape[1], input.shape[2])
