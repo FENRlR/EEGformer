@@ -54,34 +54,6 @@ class Mlp(nn.Module):  # MLP from torchvision did not support float16 - borrowed
         return x
 
 
-class ODCM(nn.Module):
-    def __init__(self, input_channels, kernel_size, dtype=torch.float32):
-        super(ODCM, self).__init__()
-        self.inpch = input_channels
-        self.ksize = kernel_size  # 1X10
-        self.ncf = 120  # The number of the depth-wise convolutional filter used in the three layers is set to 120
-        self.dtype = dtype
-
-        self.cvf1 = nn.Conv1d(in_channels=self.inpch, out_channels=self.inpch, kernel_size=self.ksize, padding='valid', stride=1, groups=self.inpch, dtype=self.dtype)
-        self.cvf2 = nn.Conv1d(in_channels=self.cvf1.out_channels, out_channels=self.cvf1.out_channels, kernel_size=self.ksize, padding='valid', stride=1, groups=self.cvf1.out_channels, dtype=self.dtype)
-        self.cvf3 = nn.Conv1d(in_channels=self.cvf2.out_channels, out_channels=self.ncf * self.cvf2.out_channels, kernel_size=self.ksize, padding='valid', stride=1, groups=self.cvf2.out_channels, dtype=self.dtype)
-
-        # - reserve
-        # self.relu = nn.ReLU()
-
-    def forward(self, x):
-        x = self.cvf1(x)
-        # x = self.relu(x)
-
-        x = self.cvf2(x)
-        # x = self.relu(x)
-
-        x = self.cvf3(x)
-        x = torch.reshape(x, ((int)(x.shape[0] / self.ncf), self.ncf, (int)(x.shape[1])))
-
-        return x
-
-
 class GenericTFB(nn.Module):
     def __init__(self, emb_size, num_heads, dtype):
         super(GenericTFB, self).__init__()
@@ -155,6 +127,34 @@ class TemporalTFB(nn.Module):
         savespace = self.mlp(self.lnormz(savespace)) + savespace  # new z
 
         return savespace
+
+
+class ODCM(nn.Module):
+    def __init__(self, input_channels, kernel_size, dtype=torch.float32):
+        super(ODCM, self).__init__()
+        self.inpch = input_channels
+        self.ksize = kernel_size  # 1X10
+        self.ncf = 120  # The number of the depth-wise convolutional filter used in the three layers is set to 120
+        self.dtype = dtype
+
+        self.cvf1 = nn.Conv1d(in_channels=self.inpch, out_channels=self.inpch, kernel_size=self.ksize, padding='valid', stride=1, groups=self.inpch, dtype=self.dtype)
+        self.cvf2 = nn.Conv1d(in_channels=self.cvf1.out_channels, out_channels=self.cvf1.out_channels, kernel_size=self.ksize, padding='valid', stride=1, groups=self.cvf1.out_channels, dtype=self.dtype)
+        self.cvf3 = nn.Conv1d(in_channels=self.cvf2.out_channels, out_channels=self.ncf * self.cvf2.out_channels, kernel_size=self.ksize, padding='valid', stride=1, groups=self.cvf2.out_channels, dtype=self.dtype)
+
+        # - reserve
+        # self.relu = nn.ReLU()
+
+    def forward(self, x):
+        x = self.cvf1(x)
+        # x = self.relu(x)
+
+        x = self.cvf2(x)
+        # x = self.relu(x)
+
+        x = self.cvf3(x)
+        x = torch.reshape(x, ((int)(x.shape[0] / self.ncf), self.ncf, (int)(x.shape[1])))
+
+        return x
 
 
 class RTM(nn.Module):  # Regional transformer module
