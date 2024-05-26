@@ -157,6 +157,7 @@ class ODCM(nn.Module):
         return x
 
 
+# TODO : Clean up the old remains and rewrite L1 term
 class RTM(nn.Module):  # Regional transformer module
     def __init__(self, input, num_blocks, num_heads, dtype):  # input -> S x C x D
         super(RTM, self).__init__()
