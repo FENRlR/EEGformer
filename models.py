@@ -109,7 +109,7 @@ class TemporalTFB(nn.Module):
 
     def forward(self, x, savespace):
         qkvspace = torch.zeros(3, self.avgf + 1, self.hA, self.Dh, dtype=self.dtype).to(device)  # Q, K, V
-        rsaspace = torch.zeros(self.hA, self.avgf + 1, self.avgf + 1, dtype=self.dtype).to(device)
+        atspace = torch.zeros(self.hA, self.avgf + 1, self.avgf + 1, dtype=self.dtype).to(device)
         imv = torch.zeros(self.avgf + 1, self.hA, self.Dh, dtype=self.dtype).to(device)
 
         qkvspace = torch.einsum('xhdm,im -> xihd', self.Wqkv, self.lnorm(savespace))  # Q, K, V
@@ -118,7 +118,7 @@ class TemporalTFB(nn.Module):
         atspace = (qkvspace[0].clone().transpose(0, 1) / math.sqrt(self.Dh)) @ qkvspace[1].clone().transpose(0, 1).transpose(-2, -1)
 
         # - Intermediate vectors
-        imv = (rsaspace.clone() @ qkvspace[2].clone().transpose(0, 1)).transpose(0, 1)
+        imv = (atspace.clone() @ qkvspace[2].clone().transpose(0, 1)).transpose(0, 1)
 
         # - NOW SAY HELLO TO NEW Z!
         savespace = torch.einsum('nm,im -> in', self.Wo, imv.clone().reshape(self.avgf + 1, self.M_size1)) + savespace  # z'
@@ -157,7 +157,6 @@ class ODCM(nn.Module):
         return x
 
 
-# TODO : Clean up the old remains and rewrite L1 term
 class RTM(nn.Module):  # Regional transformer module
     def __init__(self, input, num_blocks, num_heads, dtype):  # input -> S x C x D
         super(RTM, self).__init__()
@@ -218,8 +217,6 @@ class STM(nn.Module):  # Synchronous transformer module
         trunc_normal(self.bias, std=.02)
         trunc_normal(self.cls, std=.02)
 
-        self.Wqkv = nn.Parameter(torch.randn(self.tK, 3, self.hA, self.Dh, self.M_size1, dtype=self.dtype))
-        self.Wo = nn.Parameter(torch.randn(self.tK, self.M_size1, self.M_size1, dtype=self.dtype))  # DxDh in the paper but we gonna concatenate heads anyway and Dh*hA = D
         self.lnorm = nn.LayerNorm(self.M_size1, dtype=self.dtype)  # LayerNorm operation for dimension D
         self.lnormz = nn.LayerNorm(self.M_size1, dtype=self.dtype)  # LayerNorm operation for z
         self.mlp = Mlp(in_features=self.M_size1, hidden_features=int(self.M_size1 * 4), act_layer=nn.GELU, dtype=self.dtype)  # mlp_ratio=4
@@ -264,8 +261,6 @@ class TTM(nn.Module):  # Temporal transformer module
         trunc_normal(self.bias, std=.02)
         trunc_normal(self.cls, std=.02)
 
-        self.Wqkv = nn.Parameter(torch.randn(self.tK, 3, self.hA, self.Dh, self.M_size1, dtype=self.dtype))
-        self.Wo = nn.Parameter(torch.randn(self.tK, self.M_size1, self.M_size1, dtype=self.dtype))
         self.lnorm = nn.LayerNorm(self.M_size1, dtype=self.dtype)  # LayerNorm operation for dimension D
         self.lnormz = nn.LayerNorm(self.M_size1, dtype=self.dtype)  # LayerNorm operation for z
         self.mlp = Mlp(in_features=self.M_size1, hidden_features=int(self.M_size1 * 4), act_layer=nn.GELU, dtype=self.dtype)  # mlp_ratio=4
@@ -358,10 +353,17 @@ class EEGformer(nn.Module):
     # CE - uses one hot encoded label or similar(such as multi class probability label)
     def eegloss(self, xf, label, L1_reg_const):  # CE Loss with L1 regularization
         wt = self.sa(self.cnndecoder.fc.weight) + self.sa(self.cnndecoder.cvd1.weight) + self.sa(self.cnndecoder.cvd2.weight) + self.sa(self.cnndecoder.cvd3.weight)
-        wt += self.sa(self.ttm.mlp.fc1.weight) + self.sa(self.ttm.mlp.fc2.weight) + self.sa(self.ttm.lnorm.weight) + self.sa(self.ttm.lnormz.weight) + self.sa(self.ttm.Wo) + self.sa(self.ttm.Wqkv) + self.sa(self.ttm.weight)
-        wt += self.sa(self.stm.mlp.fc1.weight) + self.sa(self.stm.mlp.fc2.weight) + self.sa(self.stm.lnorm.weight) + self.sa(self.stm.lnormz.weight) + self.sa(self.stm.Wo) + self.sa(self.stm.Wqkv) + self.sa(self.stm.weight)
-        wt += self.sa(self.rtm.mlp.fc1.weight) + self.sa(self.rtm.mlp.fc2.weight) + self.sa(self.rtm.lnorm.weight) + self.sa(self.rtm.lnormz.weight) + self.sa(self.rtm.Wo) + self.sa(self.rtm.Wqkv) + self.sa(self.rtm.weight)
+        wt += self.sa(self.ttm.mlp.fc1.weight) + self.sa(self.ttm.mlp.fc2.weight) + self.sa(self.ttm.lnorm.weight) + self.sa(self.ttm.lnormz.weight) + self.sa(self.ttm.weight)
+        wt += self.sa(self.stm.mlp.fc1.weight) + self.sa(self.stm.mlp.fc2.weight) + self.sa(self.stm.lnorm.weight) + self.sa(self.stm.lnormz.weight) + self.sa(self.stm.weight)
+        wt += self.sa(self.rtm.mlp.fc1.weight) + self.sa(self.rtm.mlp.fc2.weight) + self.sa(self.rtm.lnorm.weight) + self.sa(self.rtm.lnormz.weight) + self.sa(self.rtm.weight)
         wt += self.sa(self.odcm.cvf1.weight) + self.sa(self.odcm.cvf2.weight) + self.sa(self.odcm.cvf3.weight)
+
+        for tfb in self.rtm.tfb:
+            wt += self.sa(tfb.Wo) + self.sa(tfb.Wqkv)
+        for tfb in self.stm.tfb:
+            wt += self.sa(tfb.Wo) + self.sa(tfb.Wqkv)
+        for tfb in self.ttm.tfb:
+            wt += self.sa(tfb.Wo) + self.sa(tfb.Wqkv)
 
         ls = -(label * torch.log(xf) + (1 - label) * torch.log(1 - xf))
         ls = torch.mean(ls) + L1_reg_const * wt
