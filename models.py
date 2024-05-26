@@ -82,7 +82,6 @@ class ODCM(nn.Module):
         return x
 
 
-# TODO: block separation (generic TF block)
 class GenericTFB(nn.Module):
     def __init__(self, emb_size, num_heads, dtype):
         super(GenericTFB, self).__init__()
