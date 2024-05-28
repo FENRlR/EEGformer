@@ -9,6 +9,7 @@ import torch.nn as nn
 import math
 from sklearn.preprocessing import StandardScaler
 import models
+import utils
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 torch.manual_seed(1234)
@@ -39,6 +40,8 @@ for i in range(esry.shape[0]):
 evalx = esrinput[10500:11500, :]
 evaly = esrlabel[10500:11500]
 
+num_data = esry.squeeze().shape[0]
+
 # scale
 sc = StandardScaler()
 esrx = sc.fit_transform(esrx)  # AttributeError: 'numpy.ndarray' object has no attribute 'unsqueeze'
@@ -60,39 +63,7 @@ modelpath = ""
 print(f">> {modelpath.split('/')[1]}")
 model = torch.load(modelpath)
 model.to(device)
-
-
-num_data = esry.squeeze().shape[0]
-
-
-def dscm(x, y):
-    tp, fp, tn, fn = 0, 0, 0, 0
-    for i in range(x.shape[0]):
-        if x[i] == 1:
-            if x[i] == y[i]:
-                tp += 1
-            else:
-                fp += 1
-        else:
-            if x[i] == y[i]:
-                tn += 1
-            else:
-                fn += 1
-
-    if (tp + fp + tn + fn) != 0:
-        print(f"acc = {(tp + tn) / (tp + fp + tn + fn)}")
-    else:
-        print("ERROR - acc : (tp + fp + tn + fn) = 0")
-    if (tp + fn) != 0:
-        print(f"sen = {tp / (tp + fn)}")
-    else:
-        print("ERROR - sen : (tp+fn) = 0")
-    if (tn + fp) != 0:
-        print(f"spe = {tn / (tn + fp)}")
-    else:
-        print("ERROR - spe : (tn+fp) = 0")
-
-    return tp, fp, tn, fn
+model.eval()
 
 
 with torch.no_grad():
@@ -104,5 +75,5 @@ with torch.no_grad():
         evinputs = esrx[z].to(dtype).to(device)
         evoutputs[z] = torch.argmax(model(evinputs), dim=1)
 
-    tp, fp, tn, fn = dscm(evoutputs, evlabel)
+    tp, fp, tn, fn = utils.dscm(evoutputs, evlabel)
     print(f"tp : {tp}, fp : {fp}, tn : {tn}, fn : {fn}")  # tp, fp, tn, fn

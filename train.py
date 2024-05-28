@@ -10,6 +10,7 @@ import torch.nn.functional as F
 import math
 from sklearn.preprocessing import StandardScaler
 import models
+import utils
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 torch.manual_seed(1234)
@@ -17,7 +18,6 @@ torch.manual_seed(1234)
 print(f"CUDA : {torch.cuda.is_available()}")
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
 
 # - Number of Channels : 1
 esrinput = torch.tensor(pd.read_csv("./Epileptic Seizure Recognition/Epileptic Seizure Recognition.csv").values[0:, 1:178].astype(np.float32))
@@ -62,7 +62,7 @@ if len(list(esrx.shape)) == 2:
     evalx = evalx.unsqueeze(2)
 
 print(esrx[0].shape)
-
+print("-----------")
 
 # Parameters
 input_channels = esrx.shape[2]
@@ -80,7 +80,7 @@ CF_second = 2
 
 # dtype = torch.float16
 dtype = torch.float32
-epoch = 500#100
+epoch = 30#100
 bs = 750#500
 
 keep_latest3 = True
@@ -100,46 +100,15 @@ num_data = esry.squeeze().shape[0]
 # optimizer
 optimizer = torch.optim.AdamW(model.parameters(), lr=5e-04)  # 1e-05
 
-
-def dscm(x, y):
-    tp, fp, tn, fn = 0, 0, 0, 0
-    for i in range(x.shape[0]):
-        if x[i] == 1:
-            if x[i] == y[i]:
-                tp += 1
-            else:
-                fp += 1
-        else:
-            if x[i] == y[i]:
-                tn += 1
-            else:
-                fn += 1
-
-    # acc = (tp+tn)/(tp + fp + tn + fn)
-    # sen = tp/(tp+fn)
-    # spe = tn/(tn+fp)
-    if (tp + fp + tn + fn) != 0:
-        print(f"acc = {(tp + tn) / (tp + fp + tn + fn)}")
-    else:
-        print("ERROR - acc : (tp + fp + tn + fn) = 0")
-    if (tp + fn) != 0:
-        print(f"sen = {tp / (tp + fn)}")
-    else:
-        print("ERROR - sen : (tp+fn) = 0")
-    if (tn + fp) != 0:
-        print(f"spe = {tn / (tn + fp)}")
-    else:
-        print("ERROR - spe : (tn+fp) = 0")
-
-    return tp, fp, tn, fn
-    # return acc, sen, spe
-
-
 preload = 0
 if load_pretrain is True:
     preload = int(modelpath.split("/")[1].split(".")[0].split("_")[1])
 
+log = []
+#utils.initlossplot()
 for i in range(epoch):
+    log.append(0)
+    model.train()
     for j in range((int)(num_data / bs)):
         optimizer.zero_grad()
         outputs = torch.zeros(bs, num_cls).to(device)
@@ -150,23 +119,24 @@ for i in range(epoch):
             inputs = esrx[j * bs + z].to(dtype).to(device)
             outputs[z] = model(inputs)
 
-        #loss = model.eegloss_wol1(outputs, label)#L1_reg_const = 0.005
+        #loss = model.eegloss(outputs, label, 0.005)# needs one hot encoding, L1_reg_const = 0.005
         loss = model.bceloss_w(outputs, label, truenum, esry.shape[0])
         loss.backward()
         optimizer.step()
+        log[-1] += loss.item()
         print(f">>> bs {j + 1} -> loss : {loss}")
+    log[-1] = log[-1]/(int)(num_data / bs)
+    utils.lossplot(list(range(1,len(log)+1)),log)
 
     # Evaluation
+    model.eval()
     with torch.no_grad():
         evoutputs = torch.zeros(evalx.shape[0]).to(device)
         evlabel = evaly.to(dtype).to(device)
         for z in range(evoutputs.shape[0]):
             evinputs = evalx[z].to(dtype).to(device)
             evoutputs[z] = torch.argmax(model(evinputs), dim=1)
-
-        # acc,sen,spe = dscm(evoutputs,evlabel)
-        tp, fp, tn, fn = dscm(evoutputs, evlabel)
-        # print(f">>> epoch {i+1} -> ACC : {acc}, SEN : {sen}, SPE : {spe}")
+        tp, fp, tn, fn = utils.dscm(evoutputs, evlabel)
         print(f">>> epoch {i + 1} -> tp : {tp}, fp : {fp}, tn : {tn}, fn : {fn}")  # tp, fp, tn, fn
 
     torch.save(model, f'G_{preload + int(num_data / bs * (i + 1))}.pth')
