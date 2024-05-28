@@ -80,7 +80,7 @@ CF_second = 2
 
 # dtype = torch.float16
 dtype = torch.float32
-epoch = 30#100
+epoch = 20#100
 bs = 750#500
 
 keep_latest3 = True
