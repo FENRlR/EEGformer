@@ -1,8 +1,16 @@
 import matplotlib.pyplot as plt
 
 
-plt.ion()
 def lossplot(x,y):
+    plt.ioff()
+    plt.plot(x, y, linestyle='-', color='b')
+    plt.title('Average loss per epoch')
+    plt.xlabel('epoch')
+    plt.ylabel('avg loss')
+    plt.show()
+
+def lossplot_active(x,y):
+    plt.ion()
     plt.plot(x, y, linestyle='-', color='b')
     plt.title('Average loss per epoch')
     plt.xlabel('epoch')

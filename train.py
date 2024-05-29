@@ -80,7 +80,7 @@ CF_second = 2
 
 # dtype = torch.float16
 dtype = torch.float32
-epoch = 20#100
+epoch = 30#100
 bs = 750#500
 
 keep_latest3 = True
@@ -126,7 +126,7 @@ for i in range(epoch):
         log[-1] += loss.item()
         print(f">>> bs {j + 1} -> loss : {loss}")
     log[-1] = log[-1]/(int)(num_data / bs)
-    utils.lossplot(list(range(1,len(log)+1)),log)
+    #utils.lossplot_active(list(range(1,len(log)+1)),log)
 
     # Evaluation
     model.eval()
@@ -146,3 +146,5 @@ for i in range(epoch):
             os.remove(delpath)
 
     print(f'saved : G_{preload + int(num_data / bs * (i + 1))}.pth')
+
+utils.lossplot(list(range(1,len(log)+1)),log)
