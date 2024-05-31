@@ -124,7 +124,7 @@ for i in range(epoch):
         loss.backward()
         optimizer.step()
         log[-1] += loss.item()
-        print(f">>> bs {j + 1} -> loss : {loss}")
+        print(f">>> b {j + 1} -> loss : {loss}")
     log[-1] = log[-1]/(int)(num_data / bs)
     #utils.lossplot_active(list(range(1,len(log)+1)),log)
 
