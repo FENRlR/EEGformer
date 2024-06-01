@@ -176,11 +176,6 @@ class RTM(nn.Module):  # Regional transformer module
         self.cls = nn.Parameter(torch.zeros(self.inputshape[2], 1, self.M_size1, dtype=self.dtype))
         trunc_normal(self.bias, std=.02)
         trunc_normal(self.cls, std=.02)
-
-        self.lnorm = nn.LayerNorm(self.M_size1, dtype=self.dtype)  # LayerNorm operation for dimension D
-        self.lnormz = nn.LayerNorm(self.M_size1, dtype=self.dtype)  # LayerNorm operation for z
-        self.softmax = nn.Softmax()
-        self.mlp = Mlp(in_features=self.M_size1, hidden_features=int(self.M_size1 * 4), act_layer=nn.GELU,dtype=self.dtype)  # mlp_ratio=4
         self.tfb = nn.ModuleList([GenericTFB(self.M_size1, self.hA, self.dtype) for _ in range(self.tK)])
 
     def forward(self, x):
@@ -216,10 +211,6 @@ class STM(nn.Module):  # Synchronous transformer module
         self.cls = nn.Parameter(torch.zeros(self.inputshape[2], 1, self.M_size1, dtype=self.dtype))
         trunc_normal(self.bias, std=.02)
         trunc_normal(self.cls, std=.02)
-
-        self.lnorm = nn.LayerNorm(self.M_size1, dtype=self.dtype)  # LayerNorm operation for dimension D
-        self.lnormz = nn.LayerNorm(self.M_size1, dtype=self.dtype)  # LayerNorm operation for z
-        self.mlp = Mlp(in_features=self.M_size1, hidden_features=int(self.M_size1 * 4), act_layer=nn.GELU, dtype=self.dtype)  # mlp_ratio=4
         self.tfb = nn.ModuleList([GenericTFB(self.M_size1, self.hA, self.dtype) for _ in range(self.tK)])
 
     def forward(self, x):  # S x C x D -> x
@@ -260,10 +251,6 @@ class TTM(nn.Module):  # Temporal transformer module
         self.cls = nn.Parameter(torch.zeros(1, self.M_size1, dtype=self.dtype))
         trunc_normal(self.bias, std=.02)
         trunc_normal(self.cls, std=.02)
-
-        self.lnorm = nn.LayerNorm(self.M_size1, dtype=self.dtype)  # LayerNorm operation for dimension D
-        self.lnormz = nn.LayerNorm(self.M_size1, dtype=self.dtype)  # LayerNorm operation for z
-        self.mlp = Mlp(in_features=self.M_size1, hidden_features=int(self.M_size1 * 4), act_layer=nn.GELU, dtype=self.dtype)  # mlp_ratio=4
         self.tfb = nn.ModuleList([TemporalTFB(self.M_size1, self.hA, self.avgf, self.dtype) for _ in range(self.tK)])
 
         self.lnorm_extra = nn.LayerNorm(self.M_size1, dtype=self.dtype)  # EXPERIMENTAL
@@ -307,7 +294,7 @@ class CNNdecoder(nn.Module):  # EEGformer decoder
     def forward(self, x):  # x -> M x S x C
         x = x.transpose(0, 1).transpose(1, 2)  # S x C x M
         x = self.cvd1(x)  # S x M
-        x = x[:, 0, :]
+        x = x[:, 0, :] # can be replaced with x.squeeze(x,1) in torch 2.0 or higher
         x = self.cvd2(x).transpose(0, 1)  # N x M transposed to M x N
         x = self.cvd3(x)  # M/2 x N
         x = self.fc(x.reshape(1, x.shape[0] * x.shape[1]))
