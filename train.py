@@ -20,7 +20,7 @@ print(f"CUDA : {torch.cuda.is_available()}")
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # - Number of Channels : 1
-esrinput = torch.tensor(pd.read_csv("./Epileptic Seizure Recognition/Epileptic Seizure Recognition.csv").values[0:, 1:177].astype(np.float32)) # truncation : 178 -> 177
+esrinput = torch.tensor(pd.read_csv("./Epileptic Seizure Recognition/Epileptic Seizure Recognition.csv").values[0:, 1:178].astype(np.float32)) # truncation : 178 -> 177
 esrlabel = torch.tensor(pd.read_csv("./Epileptic Seizure Recognition/Epileptic Seizure Recognition.csv").values[0:, 179].astype(np.float32)) # label stands at 179
 
 for i in range(esrlabel.shape[0]):
