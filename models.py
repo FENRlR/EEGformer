@@ -2,13 +2,11 @@ import os
 import torch
 import torch.nn as nn
 import math
-import torch.nn.functional as F
-import torchvision.ops as tos
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-def trunc_normal(tensor, mean=0., std=1., a=-2., b=2.):  # for positional embedding - borrowed from meta
+def trunc_normal(tensor, mean=0., std=1., a=-2., b=2.):  # for positional embedding - borrowed from Meta
     def norm_cdf(x):  # Computes standard normal cumulative distribution function
         return (1. + math.erf(x / math.sqrt(2.))) / 2.
 
@@ -35,7 +33,7 @@ def trunc_normal(tensor, mean=0., std=1., a=-2., b=2.):  # for positional embedd
         return tensor
 
 
-class Mlp(nn.Module):  # MLP from torchvision did not support float16 - borrowed from Meta
+class Mlp(nn.Module): # Multilayer perceptron
     def __init__(self, in_features, hidden_features=None, out_features=None, act_layer=nn.GELU, drop=0., dtype=torch.float32):
         super().__init__()
         out_features = out_features or in_features
