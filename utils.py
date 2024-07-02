@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 
 
-def lossplot(x,y):
+def lossplot(x, y):
     plt.ioff()
     plt.plot(x, y, linestyle='-', color='b')
     plt.title('Average loss per epoch')
@@ -9,12 +9,41 @@ def lossplot(x,y):
     plt.ylabel('avg loss')
     plt.show()
 
-def lossplot_active(x,y):
+def lossplot_with_val(x, y1, y2):
+    """
+    :param y1: training loss
+    :param y2: validation loss
+    """
+    plt.ioff()
+    plt.plot(x, y1, linestyle='-', color='b', label = "training")
+    plt.plot(x, y2, linestyle='-', color='r', label = "validation")
+    plt.title('Average loss per epoch')
+    plt.xlabel('epoch')
+    plt.ylabel('avg loss')
+    plt.legend()
+    plt.show()
+
+def lossplot_active(x, y):
     plt.ion()
     plt.plot(x, y, linestyle='-', color='b')
     plt.title('Average loss per epoch')
     plt.xlabel('epoch')
     plt.ylabel('avg loss')
+    plt.show()
+    plt.pause(0.0001)
+
+def lossplot_with_val_active(x, y1, y2):
+    """
+    :param y1: training loss
+    :param y2: validation loss
+    """
+    plt.ion()
+    plt.plot(x, y1, linestyle='-', color='b', label = "training")
+    plt.plot(x, y2, linestyle='-', color='r', label = "validation")
+    plt.title('Average loss per epoch')
+    plt.xlabel('epoch')
+    plt.ylabel('avg loss')
+    plt.legend()
     plt.show()
     plt.pause(0.0001)
 

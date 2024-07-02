@@ -105,9 +105,11 @@ if load_pretrain is True:
     preload = int(modelpath.split("/")[1].split(".")[0].split("_")[1])
 
 log = []
+logeval = []
 #utils.initlossplot()
 for i in range(epoch):
     log.append(0)
+    logeval.append(0)
     model.train()
     for j in range((int)(num_data / bs)):
         optimizer.zero_grad()
@@ -132,10 +134,15 @@ for i in range(epoch):
     model.eval()
     with torch.no_grad():
         evoutputs = torch.zeros(evalx.shape[0]).to(device)
+        tempoutputs = torch.zeros(evoutputs.shape[0], num_cls).to(device)
         evlabel = evaly.to(dtype).to(device)
         for z in range(evoutputs.shape[0]):
             evinputs = evalx[z].to(dtype).to(device)
-            evoutputs[z] = torch.argmax(model(evinputs), dim=1)
+            tempoutputs[z] = model(evinputs)
+            evoutputs[z] = torch.argmax(tempoutputs[z].unsqueeze(0), dim=1)
+        eval_loss = model.bceloss_w(tempoutputs, evlabel, truenum, esry.shape[0])
+        logeval[-1] += eval_loss.item()
+
         tp, fp, tn, fn = utils.dscm(evoutputs, evlabel)
         print(f">>> epoch {i + 1} -> tp : {tp}, fp : {fp}, tn : {tn}, fn : {fn}")  # tp, fp, tn, fn
 
@@ -147,4 +154,5 @@ for i in range(epoch):
 
     print(f'saved : G_{preload + int(num_data / bs * (i + 1))}.pth')
 
-utils.lossplot(list(range(1,len(log)+1)),log)
+#utils.lossplot(list(range(1,len(log)+1)),log)
+utils.lossplot_with_val(list(range(1,len(log)+1)),log,logeval)
