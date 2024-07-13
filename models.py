@@ -134,22 +134,21 @@ class ODCM(nn.Module):
         self.ksize = kernel_size  # 1X10
         self.ncf = 120  # The number of the depth-wise convolutional filter used in the three layers is set to 120
         self.dtype = dtype
-
         self.cvf1 = nn.Conv1d(in_channels=self.inpch, out_channels=self.inpch, kernel_size=self.ksize, padding='valid', stride=1, groups=self.inpch, dtype=self.dtype)
         self.cvf2 = nn.Conv1d(in_channels=self.cvf1.out_channels, out_channels=self.cvf1.out_channels, kernel_size=self.ksize, padding='valid', stride=1, groups=self.cvf1.out_channels, dtype=self.dtype)
         self.cvf3 = nn.Conv1d(in_channels=self.cvf2.out_channels, out_channels=self.ncf * self.cvf2.out_channels, kernel_size=self.ksize, padding='valid', stride=1, groups=self.cvf2.out_channels, dtype=self.dtype)
-
-        # - reserve
-        # self.relu = nn.ReLU()
+        self.relu = nn.ReLU()
 
     def forward(self, x):
         x = self.cvf1(x)
-        # x = self.relu(x)
+        x = self.relu(x)
 
         x = self.cvf2(x)
-        # x = self.relu(x)
+        x = self.relu(x)
 
         x = self.cvf3(x)
+        x = self.relu(x)
+
         x = torch.reshape(x, ((int)(x.shape[0] / self.ncf), self.ncf, (int)(x.shape[1])))
 
         return x
@@ -288,13 +287,20 @@ class CNNdecoder(nn.Module):  # EEGformer decoder
         self.cvd2 = nn.Conv1d(in_channels=self.s, out_channels=self.n, kernel_size=1, dtype=self.dtype)
         self.cvd3 = nn.Conv1d(in_channels=self.m, out_channels=int(self.m / 2), kernel_size=1, dtype=self.dtype)
         self.fc = nn.Linear(int(self.m / 2) * self.n, num_cls, dtype=self.dtype)
+        self.relu = nn.ReLU()
 
     def forward(self, x):  # x -> M x S x C
         x = x.transpose(0, 1).transpose(1, 2)  # S x C x M
         x = self.cvd1(x)  # S x M
+        x = self.relu(x)
+
         x = x[:, 0, :] # can be replaced with x.squeeze(x,1) in torch 2.0 or higher
         x = self.cvd2(x).transpose(0, 1)  # N x M transposed to M x N
+        x = self.relu(x)
+
         x = self.cvd3(x)  # M/2 x N
+        x = self.relu(x)
+
         x = self.fc(x.reshape(1, x.shape[0] * x.shape[1]))
 
         return x
