@@ -142,13 +142,10 @@ class ODCM(nn.Module):
     def forward(self, x):
         x = self.cvf1(x)
         x = self.relu(x)
-
         x = self.cvf2(x)
         x = self.relu(x)
-
         x = self.cvf3(x)
         x = self.relu(x)
-
         x = torch.reshape(x, ((int)(x.shape[0] / self.ncf), self.ncf, (int)(x.shape[1])))
 
         return x
@@ -293,14 +290,11 @@ class CNNdecoder(nn.Module):  # EEGformer decoder
         x = x.transpose(0, 1).transpose(1, 2)  # S x C x M
         x = self.cvd1(x)  # S x M
         x = self.relu(x)
-
         x = x[:, 0, :] # can be replaced with x.squeeze(x,1) in torch 2.0 or higher
         x = self.cvd2(x).transpose(0, 1)  # N x M transposed to M x N
         x = self.relu(x)
-
         x = self.cvd3(x)  # M/2 x N
         x = self.relu(x)
-
         x = self.fc(x.reshape(1, x.shape[0] * x.shape[1]))
 
         return x

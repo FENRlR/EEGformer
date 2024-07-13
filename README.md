@@ -7,23 +7,23 @@ Unofficial implementation of [EEGformer](https://doi.org/10.3389/fnins.2023.1148
 ## Test outputs
 Simple test for binary classification was held using dataset from [harunshimanto/epileptic-seizure-recognition](https://www.kaggle.com/datasets/harunshimanto/epileptic-seizure-recognition).
 ```
->>> b 1 -> loss : 0.01655109040439129
->>> b 2 -> loss : 0.031279515475034714
->>> b 3 -> loss : 0.04392441734671593
->>> b 4 -> loss : 0.05442216247320175
->>> b 5 -> loss : 0.03752667456865311
->>> b 6 -> loss : 0.020403176546096802
->>> b 7 -> loss : 0.011770806275308132
->>> b 8 -> loss : 0.0071481978520751
->>> b 9 -> loss : 0.010197133757174015
->>> b 10 -> loss : 0.055636290460824966
->>> b 11 -> loss : 0.07113715261220932
->>> b 12 -> loss : 0.06072484701871872
->>> b 13 -> loss : 0.025393614545464516
->>> b 14 -> loss : 0.019941965118050575
-acc = 0.957
-sen = 0.95
-spe = 0.95875
->>> epoch 30 -> tp : 190, fp : 33, tn : 767, fn : 10
+>>> b 1 -> loss : 0.02516809105873108
+>>> b 2 -> loss : 0.02175748720765114
+>>> b 3 -> loss : 0.021974051371216774
+>>> b 4 -> loss : 0.025791224092245102
+>>> b 5 -> loss : 0.04797504469752312
+>>> b 6 -> loss : 0.023308182135224342
+>>> b 7 -> loss : 0.013465813361108303
+>>> b 8 -> loss : 0.01862935908138752
+>>> b 9 -> loss : 0.04344731196761131
+>>> b 10 -> loss : 0.025865040719509125
+>>> b 11 -> loss : 0.043744731694459915
+>>> b 12 -> loss : 0.015098555013537407
+>>> b 13 -> loss : 0.019317815080285072
+>>> b 14 -> loss : 0.02460692636668682
+acc = 0.979
+sen = 0.945
+spe = 0.9875
+>>> epoch 30 -> tp : 189, fp : 10, tn : 790, fn : 11
 ```
 ![Alt text](resources/Figure_1.png)
